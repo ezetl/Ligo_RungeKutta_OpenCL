@@ -6,3 +6,7 @@ TODO:
 Ideas:
 - los aij, tal vez convenga ponerlos en matrices en el device
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
+
+Preguntas:
+- que se guarda en el vector ya? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
+- rhs tiene pinta de kernel, ode45 tambien
