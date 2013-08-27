@@ -1,0 +1,8 @@
+TODO:
+- Hacer setup.py file
+- Encontrar otra forma de hacer switch entre float64 y float32
+- Preguntar como tienen que ser las condiciones iniciales para generarlas automaticamente
+
+Ideas:
+- los aij, tal vez convenga ponerlos en matrices en el device
+- tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
