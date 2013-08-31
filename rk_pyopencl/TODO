@@ -12,8 +12,10 @@ funciones
   podria iterar sobre las condiciones iniciales como:
   			for cond in generate_init_cond():
   				etc etc
+- Va a haber un kernel para el ode45, y un kernel para el rhs tambien. Ver como llamar a un kernel desde dentro de otro
 
 Preguntas:
-- que se guarda en el vector ya? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
+- que se guarda en el vector 'ya'? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
 - rhs tiene pinta de kernel, ode45 tambien
 - Como carajo definir arrays locales en los kernels
+- Como llamar a un kernel dentro de otro, se puede?

@@ -123,7 +123,7 @@ ode45(double t1, double t2, double *y, int N,
 			ytmp[i] = y[i]+
 				h*(a71*k1[i]+ +a73*k3[i]+a74*k4[i]+a75*k5[i]+a76*k6[i]);
 		ierr += f_rhs(ytmp, k2); // note that k2 is used for k7
-		
+		printf("ierror: %d\n", ierr);
 		// 4th order estimate
 		for (i = 0; i < N; i++)
 			y4[i] = y[i]+h*(b4_1*k1[i]+b4_3*k3[i]+b4_4*k4[i]+
@@ -153,7 +153,9 @@ ode45(double t1, double t2, double *y, int N,
 		diff = y5[0] <= 0.1+tol;
 
 		time = time+h*(delta <= tau && diff); // use 5th order estimate for y
-		for (i = 0; i < N; i++) y[i] = y5[i]*(delta <= tau && diff) + y[i]*(1-(delta <= tau && diff));
+		/*Asigno nuevos valores a y[i]*/
+		for (i = 0; i < N; i++) 
+		    y[i] = y5[i]*(delta <= tau && diff) + y[i]*(1-(delta<=tau && diff));
 		n_ok = n_ok + (delta <= tau && diff);
 		//} else { // non-acceptable error, reject step
 		n_bad = n_bad + (1 - (delta <= tau && diff));
