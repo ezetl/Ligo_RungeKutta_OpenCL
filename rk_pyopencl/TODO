@@ -6,7 +6,14 @@ TODO:
 Ideas:
 - los aij, tal vez convenga ponerlos en matrices en el device
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
+- en vez de hacer funciones separadas, hacer una clase que envuelva todo el proceso del device y las 
+funciones
+- para generar las condiciones iniciales, hacer un yield de la condicion generada. De esa forma se 
+  podria iterar sobre las condiciones iniciales como:
+  			for cond in generate_init_cond():
+  				etc etc
 
 Preguntas:
 - que se guarda en el vector ya? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
 - rhs tiene pinta de kernel, ode45 tambien
+- Como carajo definir arrays locales en los kernels

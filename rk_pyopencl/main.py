@@ -1,31 +1,23 @@
+# coding: utf-8
+import sys
 import numpy as np
+import pyopencl as cl
 
-FLOAT = np.float32
+from ode45 import Ode45
+
+
 
 def main(iters=0):
-    # Initial Conditions
-    omega = FLOAT(0.004)
-    S1ux = FLOAT(0.7071067811865476)
-    S1uy = FLOAT(0.7071067811865476)
-    S1uz = 0
-    S2ux = 0
-    S2uy = FLOAT(0.7071067811865476)
-    S2uz = FLOAT(0.7071067811865476)
-    LNx = LNy = 0
-    LNz = FLOAT(1)
-    # Number of variables
-    N = 10
     # Time range. time integrator stops automatically, t2 is just large
     t1 = 0
     t2 = FLOAT(1e10)
-    # Tolerance for solver
-    tol = FLOAT(1e-7)
-    # Max time step
-    hmax = 10
 
-    ### Aca comenzaria el ciclo para cada una de las condiciones iniciales, 
-    ### como solo tengo una, pongo una
-    
+    ode45 = Ode45()
+    ode45.execute()
 
-if __name__=="__main__":
-    main()
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit("You must enter the number of iterations")
+    ite = int(sys.argv[1])
+    main(ite)
+    sys.exit(0)
