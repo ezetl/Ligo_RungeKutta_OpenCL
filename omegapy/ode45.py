@@ -14,7 +14,7 @@ HMAX = 10  # max time step
 class Ode45:
     """
     This class wraps everything related with setting up the opencl enviroment
-    and running the Runge-Kutta code in the devices.
+    and running the algorithm in the devices.
     """
 
     def __init__(self):
@@ -44,7 +44,26 @@ class Ode45:
         This creates some arrays in the device with data used for further
         calculations.
         """
-        ### ACA CREA LAS Aij, Bij, probablemente las Ki
+        a = np.array(
+                [[],
+                 [1./5.],
+                 [3./40., 9./40.],
+                 [44./45., -56./15., 32./9.],
+                 [19372./6561., -25360./2187., 64448./6561., -212./729.],
+                 [9017./3168., -355./33., 46732./5247., 49./176., -5103./18656.],
+                 [35./384., 0., 500./1113., 125./192., -2187./6784., 11./84.],
+                ])
+        #4th order b coeffs
+        b4 = np.array([5179./57600., 7571./16695., 393./640., -92097./339200., 187./2100., 1./40.], 
+                dtype=np.float32)
+        #5th order b coeffs
+        b5 = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=np.float32)
+        #Copy arrays to device
+        mf = cl.mem_flags
+        self.a = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
+        self.b4 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b4)
+        self.b5 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b5)
+        #Now this three buffers should be accesible from kernels
 
 
     def generate_init_cond(self):
