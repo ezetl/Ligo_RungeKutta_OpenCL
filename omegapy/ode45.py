@@ -13,7 +13,7 @@ HMAX = 10  # max time step
 
 class Ode45:
     """
-    This class wraps everything related with setting up the opencl enviroment 
+    This class wraps everything related with setting up the opencl enviroment
     and running the Runge-Kutta code in the devices.
     """
 
@@ -41,7 +41,7 @@ class Ode45:
 
     def data_init(self):
         """
-        This creates some arrays in the device with data used for further 
+        This creates some arrays in the device with data used for further
         calculations.
         """
         ### ACA CREA LAS Aij, Bij, probablemente las Ki
@@ -55,7 +55,7 @@ class Ode45:
         self.init_cond =  numpy.array containing values of initial condition:
                 [omega, S1ux, S1uy, S1uz, S2ux, S2uy, S2uz, LNx, LNy, LNz]
         """
-        ### (VER TODO PARA VER UNA IDEA DE COMO IMPLEMENTAR ESTA FUNCION)
+        ### (VER EL ARCHIVO TODO PARA UNA IDEA DE COMO IMPLEMENTAR ESTA FUNCION)
         omega = FLOAT(0.004)
         S1ux = FLOAT(0.7071067811865476)
         S1uy = FLOAT(0.7071067811865476)

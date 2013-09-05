@@ -1,10 +1,9 @@
 TODO:
-- Hacer setup.py file
 - Encontrar otra forma de hacer switch entre float64 y float32
 - Preguntar como tienen que ser las condiciones iniciales para generarlas automaticamente
 
 Ideas:
-- los aij, tal vez convenga ponerlos en matrices en el device
+- los aij, ponerlos en matrices en el device
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
 - en vez de hacer funciones separadas, hacer una clase que envuelva todo el proceso del device y las 
 funciones
@@ -16,6 +15,7 @@ funciones
 
 Preguntas:
 - que se guarda en el vector 'ya'? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
+    (RTA: Es una prueba, solo importan las 10 variables nomas).
 - rhs tiene pinta de kernel, ode45 tambien
-- Como carajo definir arrays locales en los kernels
-- Como llamar a un kernel dentro de otro, se puede?
+- Como definir arrays locales en los kernels en pyopencl
+- Se puede llamar a un kernel dentro de otro?
