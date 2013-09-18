@@ -1,23 +1,18 @@
 TODO:
 - Encontrar otra forma de hacer switch entre float64 y float32
-- Preguntar como tienen que ser las condiciones iniciales para generarlas automaticamente
+- Cambiar nombres de variables por nombres de mas de una letra (D'oh).
+- implementar el rk_step, el f_rhs
+- Ver como mandar muchas condiciones iniciales en un solo batch, no solamente una
+- La variable error deberia ser un array. Ver si conviene eso o ver como pasar punteros en todo caso
 
 Ideas:
-- los aij, ponerlos en matrices en el device
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
-- en vez de hacer funciones separadas, hacer una clase que envuelva todo el proceso del device y las 
-funciones
 - para generar las condiciones iniciales, hacer un yield de la condicion generada. De esa forma se 
   podria iterar sobre las condiciones iniciales como:
         for cond in generate_init_cond():
             etc etc
-- Va a haber un kernel para el ode45, y un kernel para el rhs tambien. Ver como llamar a un kernel desde dentro de otro
 
 Preguntas:
 - que se guarda en el vector 'ya'? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
     (RTA: Es una prueba, solo importan las 10 variables nomas).
-- rhs tiene pinta de kernel, ode45 tambien
-- Como definir arrays locales en los kernels en pyopencl
-- Se puede llamar a un kernel dentro de otro?
 - Los aij, bij, conviene crearlos en memoria global o memoria local a cada kernel? repeticion de datos vs. eficiencia ??
-- Ver como hace numpy para que los arreglos bidimensionales sean float, no me anda

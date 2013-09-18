@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pyopencl as cl
 
-from ode45 import Ode45
+from ode45 import Ode45, FLOAT
 
 
 
