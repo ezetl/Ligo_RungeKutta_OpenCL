@@ -63,8 +63,6 @@ __kernel void f_rhs(__global FLOAT * state,
             error += 1;
         }
 
-        error = 34;
-
         rhsd[nvars*curr_step + 0] = omega;
         rhsd[nvars*curr_step + 1] = S1ux;
         rhsd[nvars*curr_step + 2] = S1uy;
