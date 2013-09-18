@@ -4,6 +4,7 @@ TODO:
 - implementar el rk_step, el f_rhs
 - Ver como mandar muchas condiciones iniciales en un solo batch, no solamente una
 - La variable error deberia ser un array. Ver si conviene eso o ver como pasar punteros en todo caso
+- Analizar si es posible paralelizar el f_rhs
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
