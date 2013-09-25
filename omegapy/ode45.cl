@@ -1,14 +1,39 @@
 #define FLOAT float
 #include "omega_rhs.inc"
 
-
-__kernel void rk_step(__global FLOAT * b5,
-                      __global FLOAT * b4,
-                      __global FLOAT * a)
+/*
+ * Calculates Runge-Kutta step.
+ * ytmp: temporal array for intermediate results in ode45
+ * y: initial array containing the initial state
+ * k: array containing rhs temporaries k
+ * a: array containing some constants TODO: que son las constantes?
+ * nstep: number of step, used to acces k and a array. When working with b4, b5, this might be 1, because there is only one row, though it is the 7th and 8th step (TODO: check translation)
+ * steps: number of total steps used. Useful to calculate the offset of array a. 
+ * h: TODO: algo de los pasos
+ */
+__kernel void rk_step(__global FLOAT * ytmp,
+                      __global FLOAT * y,
+                      __global FLOAT * k,
+                      __global FLOAT * a,
+                      const int nstep,
+                      const int steps,
+                      const int nvars,
+                      FLOAT h)
 {
+    int i=0;
     unsigned int id = get_global_id(0);
 
-    b5[id] += 100; 
+
+    for(i=0; i<nstep){
+        /*adds 1 to i because in a[0] row, there are only zeros*/
+        /*this is basically ytmp[i] = y[i] + h*a21*k1, etc...*/
+        /*TODO: agregar chequeos sobre los indices, por ej: que el indice de a no overflowee de la matriz de datos de a*/
+        ytmp[id] +=  a[nstep*steps+i] * k[nvars*i+id];
+        /*k[number_variables offset by number of previous step (less than the actual number of step) plus the actual position in the array, that is the global id]*/
+
+    }
+    ytmp[id] *= h;
+    ytmp[id] += y[id];
 }
 
 

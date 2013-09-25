@@ -120,18 +120,20 @@ class Ode45:
         f_rhs = self.program.f_rhs
         f_rhs.set_scalar_arg_dtypes([None, None, INT, INT, INT, INT])
 
+        rk_step = self.program.rk_step
+        rk_step.set_scalar_arg_dtypes([None, None, None, None, INT, INT, INT, FLOAT])
         #TODO: hacer lo mismo que arriba pero con el rk_step
 
         for cond in self.init_cond:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
-            #Calculate f_rhs with initial values. The number 0 is because we want 
+            #Calculate f_rhs with initial values. The number 0 is because we want
             #to use the first portion of self.k array
             f_rhs(self.queue, (global_size,), None, cond, self.k, NUM_VBLS, STEPS, 0, error)
             while(True):
                 #TODO: chequear estado
                 for i in range(1,STEPS+1): # cantidad de steps, son 7
                     #hacer algo por el estilo...
-                    self.program.rk_step(self.queue, (global_size,), None, self.b5)
+                    rk_step(self.queue, (global_size,), None, self.ytemp, self.y, self.k, self.a, i, hh)
                     f_rhs(self.queue, (global_size,), None, self.ytemp, self.k, NUM_VBLS, STEPS, i, error)
                 # hacer lo de 4º y 5º orden
                 self.program.rk_step(self.queue, (global_size,), None, self.b5)
