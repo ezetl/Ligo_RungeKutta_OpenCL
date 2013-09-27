@@ -12,6 +12,8 @@ Ideas:
   podria iterar sobre las condiciones iniciales como:
         for cond in generate_init_cond():
             etc etc
+- Cuando se hagan los batchs: en cada work-group poner una condicion inicial,
+  en cada work-item se corre cada elemento de los arreglos.
 
 Preguntas:
 - que se guarda en el vector 'ya'? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots

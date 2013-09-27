@@ -65,13 +65,19 @@ class Ode45:
         #auxiliar arrays
         self.k_host = np.zeros(shape=(NUM_VBLS*STEPS,), dtype=FLOAT)
         self.ytemp_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+        #TODO: cuando se carguen batchs de mas de una condicion inicial, estos arrays
+        #deben tener tamaño NUM_VBLS * tam_batch
         self.y_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+        self.y4_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+        self.y5_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
         #Copy arrays to device
         mf = cl.mem_flags
         self.a = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
         self.b4 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b4)
         self.b5 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.b5_host)
         self.y = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y_host)
+        self.y4 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y4_host)
+        self.y5 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y5_host)
         self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.k_host)
         self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.ytemp_host)
         #After this,the buffers should be accesible from kernels
@@ -108,39 +114,46 @@ class Ode45:
         t2 = FLOAT(1e10)
         error = 0 #error of rhs
         hmin = (t2-t1)/1e20
+        #TODO: cuando se carguen un batch de muchas condiciones iniciales, hh, delta, time, etc.. deben
+        # ser arrays, una posicion para cada batch
         hh = (t2-t1)/100
         hh = min(HMAX, hh)
         hh = max(hmin, hh)
-        self.data_init()
-        self.generate_init_cond()
-        self.load_program("ode45.cl")
         global_size = NUM_VBLS #es la cantidad de work items que voy a usar (? creo que seria la cantidad de blocks en cuda
         # el local size lo pongo como None, tal vez sean los threads
 
+        assert(t2 > t1)
+        assert(TOL > 0)
+
+        self.nsteps = 0 # Number of steps used in the process
+
+        self.data_init()
+        self.generate_init_cond()
+        self.load_program("ode45.cl")
+
+        # Set scalar arguments for OpenCL kernels
         f_rhs = self.program.f_rhs
         f_rhs.set_scalar_arg_dtypes([None, None, INT, INT, INT, INT])
 
         rk_step = self.program.rk_step
         rk_step.set_scalar_arg_dtypes([None, None, None, None, INT, INT, INT, FLOAT])
-        #TODO: hacer lo mismo que arriba pero con el rk_step
 
         for cond in self.init_cond:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
-            #Calculate f_rhs with initial values. The number 0 is because we want
-            #to use the first portion of self.k array
-            f_rhs(self.queue, (global_size,), None, cond, self.k, NUM_VBLS, STEPS, 0, error)
             while(True):
-                #TODO: chequear estado
-                for i in range(1,STEPS+1): # cantidad de steps, son 7
-                    #hacer algo por el estilo...
+                self.nsteps += 1
+
+                #Calculate f_rhs with initial values. The number 0 is because we want
+                #to use the first portion of self.k array
+                f_rhs(self.queue, (global_size,), None, cond, self.k, NUM_VBLS, STEPS, 0, error)
+                for i in range(1,STEPS+1): # cantidad de steps, es del 1 al 7
                     rk_step(self.queue, (global_size,), None, self.ytemp, self.y, self.k, self.a, i, hh)
                     f_rhs(self.queue, (global_size,), None, self.ytemp, self.k, NUM_VBLS, STEPS, i, error)
                 # hacer lo de 4º y 5º orden
-                self.program.rk_step(self.queue, (global_size,), None, self.b5)
-                self.program.rk_step(self.queue, (global_size,), None, self.b5)
+                self.program.rk_step(self.queue, (global_size,), None, self.y4, self.y, self.k, self.b4, STEPS, 0, hh)
+                self.program.rk_step(self.queue, (global_size,), None, self.y5, self.y, self.k, self.b4, STEPS-1, 0, hh)
                 #TODO: chequear delta y otras cosas
                 #TODO: updatear el array de resultado
-            # Do magic stuff
         #un printeo para chequear cosas
         self.print_array(self.k_host, self.k)
 

@@ -7,8 +7,8 @@
  * y: initial array containing the initial state
  * k: array containing rhs temporaries k
  * a: array containing some constants TODO: que son las constantes?
- * nstep: number of step, used to acces k and a array. When working with b4, b5, this might be 1, because there is only one row, though it is the 7th and 8th step (TODO: check translation)
- * steps: number of total steps used. Useful to calculate the offset of array a. 
+ * nstep: number of step, used to acces k and a array. With arrays b4 and b5 this should be the number 7 and 6 respectively, because is the number of elements of those arrays.
+ * steps: number of total steps that are going to be used, for example, array a has 7 steps. Useful to calculate the offset of array a. Array b4 and b5 should use number 0
  * h: TODO: algo de los pasos
  */
 __kernel void rk_step(__global FLOAT * ytmp,
@@ -24,7 +24,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
     unsigned int id = get_global_id(0);
 
 
-    for(i=0; i<nstep){
+    for(i=0; i<nstep; i++){
         /*adds 1 to i because in a[0] row, there are only zeros*/
         /*this is basically ytmp[i] = y[i] + h*a21*k1, etc...*/
         /*TODO: agregar chequeos sobre los indices, por ej: que el indice de a no overflowee de la matriz de datos de a*/
