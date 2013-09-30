@@ -172,9 +172,6 @@ class Ode45:
                 self.program.rk_step(self.queue, (global_size,), None, self.y5, self.y, self.k, self.b4, STEPS-1, 0, hh)
                 #TODO: chequear delta y otras cosas
                 #TODO: updatear el array de resultado
-        #un printeo para chequear cosas
-        self.print_array(self.k_host, self.k)
-
 
     def print_array(self, arr_like, arr_device):
         """
