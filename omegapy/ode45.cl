@@ -1,6 +1,25 @@
 #define FLOAT float
 #include "omega_rhs.inc"
 
+/* TODO: change parameters in a near future, when using batchs, to arrays
+ */
+void check_step(FLOAT * h, FLOAT * time, int * stops, const FLOAT t2, const int hmin)
+{
+    const int id = get_global_id(0);
+
+    if (time[id] >= t2 || h[id] < hmin || stops[id] != 0) {
+        stops[id] = 1;
+    }
+    /*if (time+h > t2) h = t2-time;*/
+    h[id] = (t2-time[id])*(time[id]+h[id] > t2) + h[id]*(time[id]+h[id] <= t2);
+}
+
+
+__kernel update_variables()
+{
+}
+
+
 /*
  * Calculates Runge-Kutta step.
  * ytmp: temporal array for intermediate results in ode45
@@ -15,10 +34,10 @@ __kernel void rk_step(__global FLOAT * ytmp,
                       __global FLOAT * y,
                       __global FLOAT * k,
                       __global FLOAT * a,
+                      __global FLOAT * h,
                       const int nstep,
                       const int steps,
-                      const int nvars,
-                      FLOAT h)
+                      const int nvars)
 {
     int i=0;
     unsigned int id = get_global_id(0);
@@ -32,7 +51,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
         /*k[number_variables offset by number of previous step (less than the actual number of step) plus the actual position in the array, that is the global id]*/
 
     }
-    ytmp[id] *= h;
+    ytmp[id] *= h[];
     ytmp[id] += y[id];
 }
 

@@ -19,9 +19,11 @@ class Ode45:
     and running the algorithm in the devices.
     """
 
-    def __init__(self):
+    def __init__(self, batch=1):
         self.opencl_init()
         self.init_cond = []
+        # TODO: this will be used in near future, when loading batches of initial conditions
+        self.batch = batch
 
     def opencl_init(self):
         """
@@ -61,25 +63,45 @@ class Ode45:
         b4 = np.array([5179./57600., 7571./16695., 393./640., -92097./339200., 187./2100., 1./40.],
                 dtype=FLOAT)
         #5th order b coeffs
-        self.b5_host = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=FLOAT)
+        b5_host = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=FLOAT)
         #auxiliar arrays
-        self.k_host = np.zeros(shape=(NUM_VBLS*STEPS,), dtype=FLOAT)
-        self.ytemp_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
-        #TODO: cuando se carguen batchs de mas de una condicion inicial, estos arrays
-        #deben tener tamaño NUM_VBLS * tam_batch
-        self.y_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
-        self.y4_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
-        self.y5_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+        k_host = np.zeros(shape=(NUM_VBLS*STEPS,), dtype=FLOAT)
+        ytemp_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+
+        y_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
+        y4_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
+        y5_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
         #Copy arrays to device
         mf = cl.mem_flags
         self.a = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
         self.b4 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b4)
-        self.b5 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=self.b5_host)
-        self.y = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y_host)
-        self.y4 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y4_host)
-        self.y5 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y5_host)
-        self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.k_host)
-        self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.ytemp_host)
+        self.b5 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b5_host)
+        self.y = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=y_host)
+        self.y4 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=y4_host)
+        self.y5 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=y5_host)
+        self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=k_host)
+        self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=ytemp_host)
+
+        t1 = FLOAT(0)
+        t2 = FLOAT(1e10)
+        error = 0 #error of rhs
+        hmin = (t2-t1)/1e20
+        n_ok = n_bad = dif = diff = 0
+        delta = -1e10
+        yinf = -1e10
+        hh = (t2-t1)/100
+        hh = min(HMAX, hh)
+        hh = max(hmin, hh)
+        h_host = np.array([hh]*self.batch, dtype=FLOAT)
+        time_host = np.array([t1]*self.batch, dtype=FLOAT)
+        stop_host = np.zeros(shape=(self.batch,), dtype=INT)
+        n_ok_host = np.zeros(shape=(self.batch,), dtype=INT)
+        n_bad_host = np.zeros(shape=(self.batch,), dtype=INT)
+        self.h = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h_host)
+        self.time = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=time_host)
+        self.stop = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=stop_host)
+        self.n_ok = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=n_ok_host)
+        self.n_bad = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=n_bad_host)
         #After this,the buffers should be accesible from kernels
 
 
@@ -110,15 +132,7 @@ class Ode45:
         """
         This calls data_init and then executes the algorithm
         """
-        t1 = FLOAT(0)
-        t2 = FLOAT(1e10)
-        error = 0 #error of rhs
-        hmin = (t2-t1)/1e20
-        #TODO: cuando se carguen un batch de muchas condiciones iniciales, hh, delta, time, etc.. deben
-        # ser arrays, una posicion para cada batch
-        hh = (t2-t1)/100
-        hh = min(HMAX, hh)
-        hh = max(hmin, hh)
+
         global_size = NUM_VBLS #es la cantidad de work items que voy a usar (? creo que seria la cantidad de blocks en cuda
         # el local size lo pongo como None, tal vez sean los threads
 
@@ -132,12 +146,16 @@ class Ode45:
         self.load_program("ode45.cl")
 
         # Set scalar arguments for OpenCL kernels
+        #                                    float *h, float *time, int *stops, float t2, int hmin
+        check_step = self.program.check_step
+        check_step.set_scalar_arg_dtypes([None, None, None, FLOAT, INT])
         f_rhs = self.program.f_rhs
         f_rhs.set_scalar_arg_dtypes([None, None, INT, INT, INT, INT])
 
         rk_step = self.program.rk_step
         rk_step.set_scalar_arg_dtypes([None, None, None, None, INT, INT, INT, FLOAT])
 
+        
         for cond in self.init_cond:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
             while(True):
@@ -149,7 +167,7 @@ class Ode45:
                 for i in range(1,STEPS+1): # cantidad de steps, es del 1 al 7
                     rk_step(self.queue, (global_size,), None, self.ytemp, self.y, self.k, self.a, i, hh)
                     f_rhs(self.queue, (global_size,), None, self.ytemp, self.k, NUM_VBLS, STEPS, i, error)
-                # hacer lo de 4º y 5º orden
+                # 4º y 5º order
                 self.program.rk_step(self.queue, (global_size,), None, self.y4, self.y, self.k, self.b4, STEPS, 0, hh)
                 self.program.rk_step(self.queue, (global_size,), None, self.y5, self.y, self.k, self.b4, STEPS-1, 0, hh)
                 #TODO: chequear delta y otras cosas
@@ -167,3 +185,4 @@ class Ode45:
         c = np.empty_like(arr_like)
         cl.enqueue_read_buffer(self.queue, arr_device, c).wait()
         print c
+
