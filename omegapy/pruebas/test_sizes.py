@@ -15,7 +15,7 @@ class test_sizes:
         self.opencl_init()
         self.batch=batch
         self.nvars=nvars
-        
+
         self.global_size=batch * nvars
         self.local_size=nvars
 
@@ -47,7 +47,7 @@ class test_sizes:
         """
         #array de todos 1
         self.a_host = np.array([1]*(self.batch*self.nvars), dtype=INT)
-        
+
         self.h_host = np.array(range(self.batch), dtype=INT)
         self.res_host = np.zeros(shape=(self.batch*self.nvars), dtype=INT)
         mf = cl.mem_flags

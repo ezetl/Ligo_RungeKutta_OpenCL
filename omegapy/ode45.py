@@ -19,11 +19,15 @@ class Ode45:
     and running the algorithm in the devices.
     """
 
-    def __init__(self, batch=1):
+    def __init__(self, batch=1, nvars=10):
         self.opencl_init()
         self.init_cond = []
-        # TODO: this will be used in near future, when loading batches of initial conditions
+        # TODO: hacer chequeos sobre el batch?? no se me ocurrue que podria
+        # llegar a pasar
         self.batch = batch
+        self.nvars = nvars
+        self.global_size = self.batch * self.nvars
+        self.local_size = nvars
 
     def opencl_init(self):
         """
@@ -82,21 +86,22 @@ class Ode45:
         self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=k_host)
         self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=ytemp_host)
 
-        t1 = FLOAT(0)
-        t2 = FLOAT(1e10)
-        error = 0 #error of rhs
-        hmin = (t2-t1)/1e20
-        n_ok = n_bad = dif = diff = 0
+        self.t1 = FLOAT(0)
+        self.t2 = FLOAT(1e10)
+        self.hmin = (self.t2-self.t1)/1e20
         delta = -1e10
         yinf = -1e10
-        hh = (t2-t1)/100
+        hh = (self.t2-self.t1)/100
         hh = min(HMAX, hh)
-        hh = max(hmin, hh)
+        hh = max(self.hmin, hh)
+        #TODO: chequear como se usaba el error en el rhs
+        error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
         h_host = np.array([hh]*self.batch, dtype=FLOAT)
-        time_host = np.array([t1]*self.batch, dtype=FLOAT)
+        time_host = np.array([self.t1]*self.batch, dtype=FLOAT)
         stop_host = np.zeros(shape=(self.batch,), dtype=INT)
         n_ok_host = np.zeros(shape=(self.batch,), dtype=INT)
         n_bad_host = np.zeros(shape=(self.batch,), dtype=INT)
+        self.error =  cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=error_host)
         self.h = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h_host)
         self.time = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=time_host)
         self.stop = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=stop_host)
@@ -136,7 +141,7 @@ class Ode45:
         global_size = NUM_VBLS #es la cantidad de work items que voy a usar (? creo que seria la cantidad de blocks en cuda
         # el local size lo pongo como None, tal vez sean los threads
 
-        assert(t2 > t1)
+        assert(self.t2 > self.t1)
         assert(TOL > 0)
 
         self.nsteps = 0 # Number of steps used in the process
@@ -155,12 +160,12 @@ class Ode45:
         rk_step = self.program.rk_step
         rk_step.set_scalar_arg_dtypes([None, None, None, None, INT, INT, INT, FLOAT])
 
-        
+
         for cond in self.init_cond:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
             while(True):
                 self.nsteps += 1
-
+                check_step(self.queue, (global_size,), (self.local_size), self.h, self.time, self.stops, self.t2, self.hmin )
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
                 f_rhs(self.queue, (global_size,), None, cond, self.k, NUM_VBLS, STEPS, 0, error)

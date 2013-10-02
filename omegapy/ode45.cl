@@ -5,7 +5,7 @@
  */
 void check_step(FLOAT * h, FLOAT * time, int * stops, const FLOAT t2, const int hmin)
 {
-    const int id = get_global_id(0);
+    const int id = get_group_id(0);
 
     if (time[id] >= t2 || h[id] < hmin || stops[id] != 0) {
         stops[id] = 1;
@@ -41,17 +41,17 @@ __kernel void rk_step(__global FLOAT * ytmp,
 {
     int i=0;
     unsigned int id = get_global_id(0);
-
+    unsigned int hid = get_group_id(0);
 
     for(i=0; i<nstep; i++){
         /*adds 1 to i because in a[0] row, there are only zeros*/
-        /*this is basically ytmp[i] = y[i] + h*a21*k1, etc...*/
+        /*this is basically ytmp[i] = y[i] + h[]*a21*k1, etc...*/
         /*TODO: agregar chequeos sobre los indices, por ej: que el indice de a no overflowee de la matriz de datos de a*/
         ytmp[id] +=  a[nstep*steps+i] * k[nvars*i+id];
         /*k[number_variables offset by number of previous step (less than the actual number of step) plus the actual position in the array, that is the global id]*/
 
     }
-    ytmp[id] *= h[];
+    ytmp[id] *= h[hid];
     ytmp[id] += y[id];
 }
 

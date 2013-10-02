@@ -5,6 +5,8 @@ TODO:
 - Ver como mandar muchas condiciones iniciales en un solo batch, no solamente una
 - La variable error deberia ser un array. Ver si conviene eso o ver como pasar punteros en todo caso
 - Analizar si es posible paralelizar el f_rhs
+- Ver como sacarse de encima tantas self. variables
+- Chequear que haya hecho bien la check_step
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
