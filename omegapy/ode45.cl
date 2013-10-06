@@ -46,6 +46,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
     for(i=0; i<nstep; i++){
         /*adds 1 to i because in a[0] row, there are only zeros*/
         /*this is basically ytmp[i] = y[i] + h[]*a21*k1, etc...*/
+        /*Note: nstep is never zero. That is because row 0 of array "a" is never used*/
         /*TODO: agregar chequeos sobre los indices, por ej: que el indice de a no overflowee de la matriz de datos de a*/
         ytmp[id] +=  a[nstep*steps+i] * k[nvars*i+id];
         /*k[number_variables offset by number of previous step (less than the actual number of step) plus the actual position in the array, that is the global id]*/
@@ -64,13 +65,15 @@ __kernel void rk_step(__global FLOAT * ytmp,
  * nvars, steps: number of variables and steps of the system. Useful for 
  *               calculate offset in k.
  * curr_step: index used to calculate offset of k.
+ * stride:
 */
 __kernel void f_rhs(__global FLOAT * state,
                     __global FLOAT * rhsd,
                     const int nvars,
                     const int steps,
                     const int curr_step,
-                    int error)
+                    const int stride,
+                    __global FLOAT * error)
 {
         /*TODO: parece complicado paralelizar eso. Basicamente cada una de 
          *las variables se calcula con calculos simples en 'rhs'. Hacer un
@@ -79,6 +82,7 @@ __kernel void f_rhs(__global FLOAT * state,
         /*TODO: ahora las masas son parametros, modificarlo luego*/
         const FLOAT m1 = 0.5;
         const FLOAT chi1 = 0.5,chi2 = 0.5;
+        int id = get_group_id(0);
         FLOAT omega = state[0];
         FLOAT S1ux  = state[1],
               S1uy  = state[2],
@@ -104,10 +108,10 @@ __kernel void f_rhs(__global FLOAT * state,
             isnan(S1ux) || isnan(S1uy) || isnan(S1uz) ||
             isnan(S2ux) || isnan(S2uy) || isnan(S2uz) ||
             isnan(LNx) || isnan(LNy) || isnan(LNz)) {
-            error += 1;
+            error[err_id] += 1;
         }
 
-        rhsd[nvars*curr_step + 0] = omega;
+        rhsd[stride*id + nvars*curr_step + 0] = omega;
         rhsd[nvars*curr_step + 1] = S1ux;
         rhsd[nvars*curr_step + 2] = S1uy;
         rhsd[nvars*curr_step + 3] = S1uz;

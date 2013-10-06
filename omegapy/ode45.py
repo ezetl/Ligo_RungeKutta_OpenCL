@@ -69,7 +69,7 @@ class Ode45:
         #5th order b coeffs
         b5_host = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=FLOAT)
         #auxiliar arrays
-        k_host = np.zeros(shape=(NUM_VBLS*STEPS,), dtype=FLOAT)
+        k_host = np.zeros(shape=(self.global_size*STEPS,), dtype=FLOAT)
         ytemp_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
 
         y_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
@@ -137,10 +137,6 @@ class Ode45:
         """
         This calls data_init and then executes the algorithm
         """
-
-        global_size = NUM_VBLS #es la cantidad de work items que voy a usar (? creo que seria la cantidad de blocks en cuda
-        # el local size lo pongo como None, tal vez sean los threads
-
         assert(self.t2 > self.t1)
         assert(TOL > 0)
 
@@ -151,9 +147,9 @@ class Ode45:
         self.load_program("ode45.cl")
 
         # Set scalar arguments for OpenCL kernels
-        #                                    float *h, float *time, int *stops, float t2, int hmin
         check_step = self.program.check_step
         check_step.set_scalar_arg_dtypes([None, None, None, FLOAT, INT])
+
         f_rhs = self.program.f_rhs
         f_rhs.set_scalar_arg_dtypes([None, None, INT, INT, INT, INT])
 
@@ -165,18 +161,28 @@ class Ode45:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
             while(True):
                 self.nsteps += 1
-                check_step(self.queue, (global_size,), (self.local_size), self.h, self.time, self.stops, self.t2, self.hmin )
+                check_step(self.queue, (self.global_size,), (self.local_size), self.h, self.time, self.stops, self.t2, self.hmin )
+                #This copy the h array and check if we need to stop. TODO: find a way to do this in gpu and avoid copying arrays in every step
+
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
-                f_rhs(self.queue, (global_size,), None, cond, self.k, NUM_VBLS, STEPS, 0, error)
+                f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.nvars, STEPS, 0, self.error)
                 for i in range(1,STEPS+1): # cantidad de steps, es del 1 al 7
-                    rk_step(self.queue, (global_size,), None, self.ytemp, self.y, self.k, self.a, i, hh)
-                    f_rhs(self.queue, (global_size,), None, self.ytemp, self.k, NUM_VBLS, STEPS, i, error)
+                    rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars)
+                    f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, NUM_VBLS, STEPS, i, self.error)
                 # 4º y 5º order
-                self.program.rk_step(self.queue, (global_size,), None, self.y4, self.y, self.k, self.b4, STEPS, 0, hh)
-                self.program.rk_step(self.queue, (global_size,), None, self.y5, self.y, self.k, self.b4, STEPS-1, 0, hh)
+                self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, STEPS, 0)
+                self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b4, self.h, STEPS-1, 0)
                 #TODO: chequear delta y otras cosas
                 #TODO: updatear el array de resultado
+
+    def copy_array(self, arr_like, arr_device):
+        """
+        This copy an array from device to host and returns it.
+        """
+        c = np.empty_like(arr_like)
+        cl.enqueue_read_buffer(self.queue, arr_device, c).wait()
+        return c
 
     def print_array(self, arr_like, arr_device):
         """
@@ -184,7 +190,6 @@ class Ode45:
         arr_like must be an array in host with the same style arr_device
         arr_device is the array that is currently in device
         """
-        c = np.empty_like(arr_like)
-        cl.enqueue_read_buffer(self.queue, arr_device, c).wait()
+        c = self.copy_array(arr_like, arr_device)
         print c
 

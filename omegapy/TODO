@@ -1,23 +1,16 @@
 TODO:
 - Encontrar otra forma de hacer switch entre float64 y float32
 - Cambiar nombres de variables por nombres de mas de una letra (D'oh).
-- implementar el rk_step, el f_rhs
-- Ver como mandar muchas condiciones iniciales en un solo batch, no solamente una
-- La variable error deberia ser un array. Ver si conviene eso o ver como pasar punteros en todo caso
 - Analizar si es posible paralelizar el f_rhs
 - Ver como sacarse de encima tantas self. variables
 - Chequear que haya hecho bien la check_step
+- Corregir lo del arreglo k: tiene nvars*STEPS longitud, pero hay que hacer eso
+  para cada batch,  asi que hay en total nvars*STEPS*batch. En cada rk_step, si
+  se esta en el el paso 4, por ej., se usa la porcion de k que va desde el 
+  step 1 al step 4, por lo tanto hay que ingeniarselas para acceder a eso con
+  algun offset.
+  Una vez que se encuentre eso, modificar el frhs y el rk_step (que usan el k).
+- Hacer el update variables y el chequeo de error y h.
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
-- para generar las condiciones iniciales, hacer un yield de la condicion generada. De esa forma se 
-  podria iterar sobre las condiciones iniciales como:
-        for cond in generate_init_cond():
-            etc etc
-- Cuando se hagan los batchs: en cada work-group poner una condicion inicial,
-  en cada work-item se corre cada elemento de los arreglos.
-
-Preguntas:
-- que se guarda en el vector 'ya'? es la evolucion de una particula en distintas etapas? siempre da lo mismo en todos los slots
-    (RTA: Es una prueba, solo importan las 10 variables nomas).
-- Los aij, bij, conviene crearlos en memoria global o memoria local a cada kernel? repeticion de datos vs. eficiencia ??
