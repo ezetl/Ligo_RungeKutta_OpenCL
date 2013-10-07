@@ -94,7 +94,6 @@ class Ode45:
         hh = (self.t2-self.t1)/100
         hh = min(HMAX, hh)
         hh = max(self.hmin, hh)
-        #TODO: chequear como se usaba el error en el rhs
         error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
         h_host = np.array([hh]*self.batch, dtype=FLOAT)
         time_host = np.array([self.t1]*self.batch, dtype=FLOAT)

@@ -1,3 +1,4 @@
+        #TODO: chequear como se usaba el error en el rhs
 #define FLOAT float
 #include "omega_rhs.inc"
 
@@ -42,14 +43,14 @@ __kernel void rk_step(__global FLOAT * ytmp,
     int i=0;
     unsigned int id = get_global_id(0);
     unsigned int hid = get_group_id(0);
+    unsigned int lid = get_local_id(0);
 
     for(i=0; i<nstep; i++){
         /*adds 1 to i because in a[0] row, there are only zeros*/
         /*this is basically ytmp[i] = y[i] + h[]*a21*k1, etc...*/
         /*Note: nstep is never zero. That is because row 0 of array "a" is never used*/
         /*TODO: agregar chequeos sobre los indices, por ej: que el indice de a no overflowee de la matriz de datos de a*/
-        ytmp[id] +=  a[nstep*steps+i] * k[nvars*i+id];
-        /*k[number_variables offset by number of previous step (less than the actual number of step) plus the actual position in the array, that is the global id]*/
+        ytmp[id] +=  a[nstep*steps+i] * k[i*nvars + hid*steps + lid];
 
     }
     ytmp[id] *= h[hid];
@@ -72,7 +73,6 @@ __kernel void f_rhs(__global FLOAT * state,
                     const int nvars,
                     const int steps,
                     const int curr_step,
-                    const int stride,
                     __global FLOAT * error)
 {
         /*TODO: parece complicado paralelizar eso. Basicamente cada una de 
@@ -82,7 +82,8 @@ __kernel void f_rhs(__global FLOAT * state,
         /*TODO: ahora las masas son parametros, modificarlo luego*/
         const FLOAT m1 = 0.5;
         const FLOAT chi1 = 0.5,chi2 = 0.5;
-        int id = get_group_id(0);
+        unsigned int gid = get_group_id(0);
+
         FLOAT omega = state[0];
         FLOAT S1ux  = state[1],
               S1uy  = state[2],
@@ -93,7 +94,7 @@ __kernel void f_rhs(__global FLOAT * state,
         FLOAT LNx   = state[7],
               LNy   = state[8],
               LNz   = state[9];
-        
+
         rhs(m1, chi1, chi2, omega, 
             S1ux, S1uy, S1uz,
             S2ux, S2uy, S2uz,
@@ -108,19 +109,20 @@ __kernel void f_rhs(__global FLOAT * state,
             isnan(S1ux) || isnan(S1uy) || isnan(S1uz) ||
             isnan(S2ux) || isnan(S2uy) || isnan(S2uz) ||
             isnan(LNx) || isnan(LNy) || isnan(LNz)) {
-            error[err_id] += 1;
+            error[gid] += 1;
         }
 
-        rhsd[stride*id + nvars*curr_step + 0] = omega;
-        rhsd[nvars*curr_step + 1] = S1ux;
-        rhsd[nvars*curr_step + 2] = S1uy;
-        rhsd[nvars*curr_step + 3] = S1uz;
-        rhsd[nvars*curr_step + 4] = S2ux;
-        rhsd[nvars*curr_step + 5] = S2uy;
-        rhsd[nvars*curr_step + 6] = S2uz;
-        rhsd[nvars*curr_step + 7] = LNx;
-        rhsd[nvars*curr_step + 8] = LNy;
-        rhsd[nvars*curr_step + 9] = LNz;
+        unsigned int offs = curr_step*nvars + gid*steps;
+        rhsd[offs] = omega;
+        rhsd[offs + 1] = S1ux;
+        rhsd[offs + 2] = S1uy;
+        rhsd[offs + 3] = S1uz;
+        rhsd[offs + 4] = S2ux;
+        rhsd[offs + 5] = S2uy;
+        rhsd[offs + 6] = S2uz;
+        rhsd[offs + 7] = LNx;
+        rhsd[offs + 8] = LNy;
+        rhsd[offs + 9] = LNz;
 }
 
 

@@ -3,13 +3,7 @@ TODO:
 - Cambiar nombres de variables por nombres de mas de una letra (D'oh).
 - Analizar si es posible paralelizar el f_rhs
 - Ver como sacarse de encima tantas self. variables
-- Chequear que haya hecho bien la check_step
-- Corregir lo del arreglo k: tiene nvars*STEPS longitud, pero hay que hacer eso
-  para cada batch,  asi que hay en total nvars*STEPS*batch. En cada rk_step, si
-  se esta en el el paso 4, por ej., se usa la porcion de k que va desde el 
-  step 1 al step 4, por lo tanto hay que ingeniarselas para acceder a eso con
-  algun offset.
-  Una vez que se encuentre eso, modificar el frhs y el rk_step (que usan el k).
+
 - Hacer el update variables y el chequeo de error y h.
 
 Ideas:
