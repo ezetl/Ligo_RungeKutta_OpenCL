@@ -1,9 +1,6 @@
-        #TODO: chequear como se usaba el error en el rhs
 #define FLOAT float
 #include "omega_rhs.inc"
 
-/* TODO: change parameters in a near future, when using batchs, to arrays
- */
 void check_step(FLOAT * h, FLOAT * time, int * stops, const FLOAT t2, const int hmin)
 {
     const int id = get_group_id(0);
@@ -16,7 +13,33 @@ void check_step(FLOAT * h, FLOAT * time, int * stops, const FLOAT t2, const int 
 }
 
 
-__kernel update_variables()
+__kernel evaluate_step(__global FLOAT * y,
+                       __global FLOAT * y4,
+                       __global FLOAT * y5,
+                       __global FLOAT * tau,
+                       __global FLOAT * delta,
+                       const FLOAT tol,
+                       const int nvars)
+{
+    /*TODO: esto se hace una vez por system, ver como*/
+
+}
+
+
+__kernel update_variables(__global FLOAT * y5,
+                          __global FLOAT * delta,
+                          __global FLOAT * tau,
+                          __global FLOAT * time,
+                          __global FLOAT * h,
+                          __global FLOAT * y,
+                          __global FLOAT * n_ok,
+                          __global FLOAT * n_bad,
+                          __global FLOAT * stop,
+                          const FLOAT tol,
+                          const FLOAT hmax,
+                          const FLOAT final_omega,
+                          const int nvars
+                          )
 {
 }
 
@@ -75,25 +98,22 @@ __kernel void f_rhs(__global FLOAT * state,
                     const int curr_step,
                     __global FLOAT * error)
 {
-        /*TODO: parece complicado paralelizar eso. Basicamente cada una de 
-         *las variables se calcula con calculos simples en 'rhs'. Hacer un
-         *kernel para cada una no tienen sentido, hay que pasarle muchas */
-//        const int index = get_global_id(0);
+    /*TODO: la idea es que esto se haga una vez por work_group, ver como hacerlo*/
         /*TODO: ahora las masas son parametros, modificarlo luego*/
         const FLOAT m1 = 0.5;
         const FLOAT chi1 = 0.5,chi2 = 0.5;
         unsigned int gid = get_group_id(0);
 
-        FLOAT omega = state[0];
-        FLOAT S1ux  = state[1],
-              S1uy  = state[2],
-              S1uz  = state[3];
-        FLOAT S2ux  = state[4],
-              S2uy  = state[5],
-              S2uz  = state[6];
-        FLOAT LNx   = state[7],
-              LNy   = state[8],
-              LNz   = state[9];
+        FLOAT omega = state[gid];
+        FLOAT S1ux  = state[gid + 1],
+              S1uy  = state[gid + 2],
+              S1uz  = state[gid + 3];
+        FLOAT S2ux  = state[gid + 4],
+              S2uy  = state[gid + 5],
+              S2uz  = state[gid + 6];
+        FLOAT LNx   = state[gid + 7],
+              LNy   = state[gid + 8],
+              LNz   = state[gid + 9];
 
         rhs(m1, chi1, chi2, omega, 
             S1ux, S1uy, S1uz,

@@ -9,6 +9,8 @@ INT = np.int32
 RANGE_IC = 10  # number of initial conditions to test
 NUM_VBLS = 10  # number of variables
 TOL = 1e-7  #  tolerance for solver
+DELTA = -1e10
+YINF = DELTA
 HMAX = 10  # max time step
 STEPS = 7
 mf = cl.mem_flags
@@ -54,6 +56,7 @@ class Ode45:
         This creates some arrays in the device with data used for further
         calculations.
         """
+        # Constants
         a = np.array(
                 [0.,0.,0.,0.,0.,0.,
                  1./5.,0.,0.,0.,0.,0.,
@@ -71,12 +74,31 @@ class Ode45:
         #auxiliar arrays
         k_host = np.zeros(shape=(self.global_size*STEPS,), dtype=FLOAT)
         ytemp_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+        #states
+        y_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
+        y4_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
+        y5_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
 
-        y_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
-        y4_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
-        y5_host = np.zeros(shape=(NUM_VBLS*self.batch,), dtype=FLOAT)
-        #Copy arrays to device
         mf = cl.mem_flags
+
+        self.t1 = FLOAT(0)
+        self.t2 = FLOAT(1e10)
+        self.hmin = (self.t2-self.t1)/1e20
+        self.final_omega = FLOAT(-0.1)
+        hh = (self.t2-self.t1)/100
+        hh = min(HMAX, hh)
+        hh = max(self.hmin, hh)
+
+        tau_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
+        delta_host = np.array([DELTA]*self.batch, dtype=FLOAT)
+        error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
+        h_host = np.array([hh]*self.batch, dtype=FLOAT)
+        time_host = np.array([self.t1]*self.batch, dtype=FLOAT)
+        stop_host = np.zeros(shape=(self.batch,), dtype=INT)
+        n_ok_host = np.zeros(shape=(self.batch,), dtype=INT)
+        n_bad_host = np.zeros(shape=(self.batch,), dtype=INT)
+
+        #Copy arrays from host to device
         self.a = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
         self.b4 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b4)
         self.b5 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b5_host)
@@ -85,21 +107,8 @@ class Ode45:
         self.y5 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=y5_host)
         self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=k_host)
         self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=ytemp_host)
-
-        self.t1 = FLOAT(0)
-        self.t2 = FLOAT(1e10)
-        self.hmin = (self.t2-self.t1)/1e20
-        delta = -1e10
-        yinf = -1e10
-        hh = (self.t2-self.t1)/100
-        hh = min(HMAX, hh)
-        hh = max(self.hmin, hh)
-        error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
-        h_host = np.array([hh]*self.batch, dtype=FLOAT)
-        time_host = np.array([self.t1]*self.batch, dtype=FLOAT)
-        stop_host = np.zeros(shape=(self.batch,), dtype=INT)
-        n_ok_host = np.zeros(shape=(self.batch,), dtype=INT)
-        n_bad_host = np.zeros(shape=(self.batch,), dtype=INT)
+        self.tau = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=tau_host)
+        self.delta = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=delta_host)
         self.error =  cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=error_host)
         self.h = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h_host)
         self.time = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=time_host)
@@ -155,6 +164,11 @@ class Ode45:
         rk_step = self.program.rk_step
         rk_step.set_scalar_arg_dtypes([None, None, None, None, INT, INT, INT, FLOAT])
 
+        evaluate_step = self.program.evaluate_step
+        evaluate_step.set_scalar_arg_dtypes([None, None, None, None, None, FLOAT, INT])
+
+        update_variables = self.program.update_variables
+        update_variables.set_scalar_arg_dtypes([None, None, None, None, None, None, None, None, None, FLOAT])
 
         for cond in self.init_cond:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
@@ -172,8 +186,8 @@ class Ode45:
                 # 4º y 5º order
                 self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, STEPS, 0)
                 self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b4, self.h, STEPS-1, 0)
-                #TODO: chequear delta y otras cosas
-                #TODO: updatear el array de resultado
+                evaluate_step(self.queue, (self.global_size,), (self.local_size,), self.y, self.y4, self.y5, self.tau, self.delta, TOL, self.nvars, )
+                update_variables(self.queue, (self.global_size,), (self.local_size,), self.y5, self.delta, self.tau, self.time, self.h, self.y, self.n_ok, self.n_bad, self.stop, TOL, self.hmax, self.final_omega, self.nvars)
 
     def copy_array(self, arr_like, arr_device):
         """
