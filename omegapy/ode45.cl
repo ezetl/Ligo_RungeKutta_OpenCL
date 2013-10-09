@@ -22,7 +22,23 @@ __kernel evaluate_step(__global FLOAT * y,
                        const int nvars)
 {
     /*TODO: esto se hace una vez por system, ver como*/
+    unsigned int gid = get_global_id(0);
+    unsigned int gr_id = get_group_id(0);
+    unsigned int offs = nvars * gr_id;
+    FLOAT yinf = -1e10;
+    FLOAT dif = 0;
+    FLOAT delt = delta[gr_id];
+    FLOAT abs_y = 0;
+    int i=0;
 
+    for(i=0; i<nvars; i++){
+        dif = fabs(y5[offs + i] - y4[offs + i]);
+        delt = dif * (dif > delt) + delt * (dif <= delt);
+        abs_y = fabs(y[offs + i];)
+        yinf = abs_y * (abs_y > yinf) + yinf * (abs_y <= yinf);
+    }
+    delta[gr_id] = delt;
+    tau[gr_id] = fmax(yinf, 1) * tol;
 }
 
 
