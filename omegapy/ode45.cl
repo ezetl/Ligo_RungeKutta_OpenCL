@@ -1,7 +1,12 @@
 #define FLOAT float
 #include "omega_rhs.inc"
 
-void check_step(FLOAT * h, FLOAT * time, int * stops, const FLOAT t2, const int hmin)
+
+__kernel void check_step(__global FLOAT * h,
+	                     __global FLOAT * time,
+	                     __global int * stops,
+	                     const FLOAT t2,
+	                     const int hmin)
 {
     const int id = get_group_id(0);
 
@@ -13,7 +18,7 @@ void check_step(FLOAT * h, FLOAT * time, int * stops, const FLOAT t2, const int 
 }
 
 
-__kernel evaluate_step(__global FLOAT * y,
+__kernel void evaluate_step(__global FLOAT * y,
                        __global FLOAT * y4,
                        __global FLOAT * y5,
                        __global FLOAT * tau,
@@ -34,7 +39,7 @@ __kernel evaluate_step(__global FLOAT * y,
     for(i=0; i<nvars; i++){
         dif = fabs(y5[offs + i] - y4[offs + i]);
         delt = dif * (dif > delt) + delt * (dif <= delt);
-        abs_y = fabs(y[offs + i];)
+        abs_y = fabs(y[offs + i]);
         yinf = abs_y * (abs_y > yinf) + yinf * (abs_y <= yinf);
     }
     delta[gr_id] = delt;
@@ -42,7 +47,7 @@ __kernel evaluate_step(__global FLOAT * y,
 }
 
 
-__kernel update_variables(__global FLOAT * y5,
+__kernel void update_variables(__global FLOAT * y5,
                           __global FLOAT * delta,
                           __global FLOAT * tau,
                           __global FLOAT * time,
@@ -50,7 +55,7 @@ __kernel update_variables(__global FLOAT * y5,
                           __global FLOAT * y,
                           __global FLOAT * n_ok,
                           __global FLOAT * n_bad,
-                          __global FLOAT * stop,
+                          __global int * stop,
                           const FLOAT tol,
                           const FLOAT hmax,
                           const FLOAT final_omega,
@@ -80,7 +85,7 @@ __kernel update_variables(__global FLOAT * y5,
     }
 
     /*XXX: ojo, el 2 lo pone como un entero, es asi?*/
-    h[gid] = fmin(hmax, 0.8 * h[gid] * powf(tau[gid] / delta[gid], power)) \
+    h[gid] = fmin(hmax, 0.8 * h[gid] * pow(tau[gid] / delta[gid], power)) \
              * (h[gid] != 0) * diff + h[gid] * (1 - diff) / 2;
 }
 
@@ -104,7 +109,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
                       const int steps,
                       const int nvars)
 {
-    int i=0;
+    unsigned int i=0;
     unsigned int id = get_global_id(0);
     unsigned int hid = get_group_id(0);
     unsigned int lid = get_local_id(0);
@@ -134,15 +139,15 @@ __kernel void rk_step(__global FLOAT * ytmp,
 */
 __kernel void f_rhs(__global FLOAT * state,
                     __global FLOAT * rhsd,
+                    __global FLOAT * error,
                     const int nvars,
                     const int steps,
-                    const int curr_step,
-                    __global FLOAT * error)
+                    const int curr_step)
 {
     /*TODO: la idea es que esto se haga una vez por work_group, ver como hacerlo*/
         /*TODO: ahora las masas son parametros, modificarlo luego*/
         const FLOAT m1 = 0.5;
-        const FLOAT chi1 = 0.5,chi2 = 0.5;
+        const FLOAT chi1 = 0.5, chi2 = 0.5;
         unsigned int gid = get_group_id(0);
 
         FLOAT omega = state[gid];
@@ -185,5 +190,3 @@ __kernel void f_rhs(__global FLOAT * state,
         rhsd[offs + 8] = LNy;
         rhsd[offs + 9] = LNz;
 }
-
-

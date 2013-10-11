@@ -6,12 +6,9 @@ import pyopencl as cl
 
 FLOAT = np.float32
 INT = np.int32
-RANGE_IC = 10  # number of initial conditions to test
-NUM_VBLS = 10  # number of variables
 TOL = 1e-7  #  tolerance for solver
 DELTA = -1e10
 YINF = DELTA
-HMAX = 10  # max time step
 STEPS = 7
 mf = cl.mem_flags
 
@@ -73,7 +70,7 @@ class Ode45:
         b5_host = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=FLOAT)
         #auxiliar arrays
         k_host = np.zeros(shape=(self.global_size*STEPS,), dtype=FLOAT)
-        ytemp_host = np.zeros(shape=(NUM_VBLS,), dtype=FLOAT)
+        ytemp_host = np.zeros(shape=(self.nvars,), dtype=FLOAT)
         #states
         y_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
         y4_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
@@ -84,9 +81,10 @@ class Ode45:
         self.t1 = FLOAT(0)
         self.t2 = FLOAT(1e10)
         self.hmin = (self.t2-self.t1)/1e20
+        self.hmax = FLOAT(10)
         self.final_omega = FLOAT(-0.1)
         hh = (self.t2-self.t1)/100
-        hh = min(HMAX, hh)
+        hh = min(self.hmax, hh)
         hh = max(self.hmin, hh)
 
         tau_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
@@ -145,12 +143,13 @@ class Ode45:
         """
         This calls data_init and then executes the algorithm
         """
+        self.data_init()
+
         assert(self.t2 > self.t1)
         assert(TOL > 0)
 
         self.nsteps = 0 # Number of steps used in the process
 
-        self.data_init()
         self.generate_init_cond()
         self.load_program("ode45.cl")
 
@@ -159,34 +158,34 @@ class Ode45:
         check_step.set_scalar_arg_dtypes([None, None, None, FLOAT, INT])
 
         f_rhs = self.program.f_rhs
-        f_rhs.set_scalar_arg_dtypes([None, None, INT, INT, INT, INT])
+        f_rhs.set_scalar_arg_dtypes([None, None, None, INT, INT, INT])
 
         rk_step = self.program.rk_step
-        rk_step.set_scalar_arg_dtypes([None, None, None, None, INT, INT, INT, FLOAT])
+        rk_step.set_scalar_arg_dtypes([None, None, None, None, None, INT, INT, INT])
 
         evaluate_step = self.program.evaluate_step
         evaluate_step.set_scalar_arg_dtypes([None, None, None, None, None, FLOAT, INT])
 
         update_variables = self.program.update_variables
-        update_variables.set_scalar_arg_dtypes([None, None, None, None, None, None, None, None, None, FLOAT])
+        update_variables.set_scalar_arg_dtypes([None, None, None, None, None, None, None, None, None, FLOAT, FLOAT, FLOAT, INT])
 
         for cond in self.init_cond:
             cond = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
             while(True):
                 self.nsteps += 1
-                check_step(self.queue, (self.global_size,), (self.local_size), self.h, self.time, self.stops, self.t2, self.hmin )
+                check_step(self.queue, (self.global_size,), (self.local_size,), self.h, self.time, self.stop, self.t2, self.hmin)
                 #This copy the h array and check if we need to stop. TODO: find a way to do this in gpu and avoid copying arrays in every step
 
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
-                f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.nvars, STEPS, 0, self.error)
+                f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.error, self.nvars, STEPS, INT(0))
                 for i in range(1,STEPS+1): # cantidad de steps, es del 1 al 7
                     rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars)
-                    f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, NUM_VBLS, STEPS, i, self.error)
+                    f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, self.error, self.nvars, STEPS, i)
                 # 4º y 5º order
-                self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, STEPS, 0)
-                self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b4, self.h, STEPS-1, 0)
-                evaluate_step(self.queue, (self.global_size,), (self.local_size,), self.y, self.y4, self.y5, self.tau, self.delta, TOL, self.nvars, )
+                self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, INT(STEPS), INT(0), INT(self.nvars))
+                self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b5, self.h, INT(STEPS-1), INT(0), INT(self.nvars))
+                evaluate_step(self.queue, (self.global_size,), (self.local_size,), self.y, self.y4, self.y5, self.tau, self.delta, TOL, self.nvars)
                 update_variables(self.queue, (self.global_size,), (self.local_size,), self.y5, self.delta, self.tau, self.time, self.h, self.y, self.n_ok, self.n_bad, self.stop, TOL, self.hmax, self.final_omega, self.nvars)
 
     def copy_array(self, arr_like, arr_device):
