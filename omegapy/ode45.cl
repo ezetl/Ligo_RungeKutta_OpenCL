@@ -57,6 +57,31 @@ __kernel update_variables(__global FLOAT * y5,
                           const int nvars
                           )
 {
+    unsigned int id = get_global_id(0);
+    unsigned int gid = get_group_id(0);
+    unsigned int lid = get_local_id(0);
+    /*Group offset, for indexing y5[0] = omega*/
+    unsigned int gr_offs = gid * nvars;
+
+    const int power = 1./6.;
+    FLOAT diff = (y5[gr_offs] <= final_omega + tol);
+    FLOAT tim = time[gid] + h[gid] * (delta[gid] <= tau[gid] && diff);
+    n_ok[gid] = n_ok[gid] + (delta[gid] <= tau[gid] && diff);
+    n_bad[gid] = n_bad[gid] + (1 - (delta[gid] <= tau[gid] && diff));
+
+    /*New values of y[i]*/
+    y[id] = y5[id] * (delta[gid] <= tau[gid] && diff) \
+            + y[id] * (1 - (delta[gid] <= tau[gid] && diff));
+
+    delta[gid] = 1e-16 * (delta[gid] == 0) + delta[gid];
+
+    if(fabs(y5[gr_offs] - final_omega) < tol){
+        stop[gid]++;
+    }
+
+    /*XXX: ojo, el 2 lo pone como un entero, es asi?*/
+    h[gid] = fmin(hmax, 0.8 * h[gid] * powf(tau[gid] / delta[gid], power)) \
+             * (h[gid] != 0) * diff + h[gid] * (1 - diff) / 2;
 }
 
 
