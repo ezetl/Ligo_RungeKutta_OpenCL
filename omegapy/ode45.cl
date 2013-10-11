@@ -81,7 +81,7 @@ __kernel void update_variables(__global FLOAT * y5,
     delta[gid] = 1e-16 * (delta[gid] == 0) + delta[gid];
 
     if(fabs(y5[gr_offs] - final_omega) < tol){
-        stop[gid]++;
+        stop[gid] = 1;
     }
 
     /*XXX: ojo, el 2 lo pone como un entero, es asi?*/

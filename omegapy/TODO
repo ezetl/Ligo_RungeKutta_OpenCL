@@ -4,8 +4,9 @@ TODO:
 - Analizar si es posible paralelizar el f_rhs
 - Ver como sacarse de encima tantas self. variables
 
-- Hacer el update variables y el chequeo de error y h.
 - Ver como ejecutar kernels por system y no por work group, o en su defecto, encontrar una forma de compartir la memoria por work group
+
+- DEBUGGEAR TODO Y HACER QUE ANDE. EMPEZAR POR EL update_variable, DEVUELVE VERDURA
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
