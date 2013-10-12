@@ -87,8 +87,8 @@ class Ode45:
         hh = min(self.hmax, hh)
         hh = max(self.hmin, hh)
 
-        tau_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
-        delta_host = np.array([DELTA]*self.batch, dtype=FLOAT)
+        self.tau_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
+        self.delta_host = np.array([DELTA]*self.batch, dtype=FLOAT)
         error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
         h_host = np.array([hh]*self.batch, dtype=FLOAT)
         time_host = np.array([self.t1]*self.batch, dtype=FLOAT)
@@ -105,8 +105,8 @@ class Ode45:
         self.y5 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=y5_host)
         self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.k_host)
         self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=ytemp_host)
-        self.tau = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=tau_host)
-        self.delta = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=delta_host)
+        self.tau = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.tau_host)
+        self.delta = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.delta_host)
         self.error =  cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=error_host)
         self.h = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h_host)
         self.time = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=time_host)
@@ -180,8 +180,8 @@ class Ode45:
                 #print("paso {}".format(nstep))
                 self.nsteps += 1
                 check_step(self.queue, (self.global_size,), (self.local_size,), self.h, self.time, self.stop, self.t2, self.hmin)
-                
-                #This copy the stop array and check if we need to stop. 
+
+                #This copy the stop array and check if we need to stop.
                 #TODO: find a way to do this in gpu and avoid copying arrays in every step
                 stop = self.copy_array(self.stop_host, self.stop)
 
@@ -191,17 +191,18 @@ class Ode45:
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
                 f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.error, self.nvars, STEPS, INT(0))
-#                self.print_array(self.k_host, self.k)
-                for i in range(1,STEPS+1): # cantidad de steps, es del 1 al 7
+                for i in range(1,STEPS): # cantidad de steps, es del 1 al 7
+                    print i
                     rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars)
                     f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, self.error, self.nvars, STEPS, i)
+                    self.print_array(self.k_host, self.k)
+                    self.print_array(self.stop_host, self.error)
+                break
                 # 4º y 5º order
                 self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, INT(STEPS), INT(0), INT(self.nvars))
                 self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b5, self.h, INT(STEPS-1), INT(0), INT(self.nvars))
                 evaluate_step(self.queue, (self.global_size,), (self.local_size,), self.y, self.y4, self.y5, self.tau, self.delta, TOL, self.nvars)
                 update_variables(self.queue, (self.global_size,), (self.local_size,), self.y5, self.delta, self.tau, self.time, self.h, self.y, self.n_ok, self.n_bad, self.stop, TOL, self.hmax, self.final_omega, self.nvars)
-#                self.print_array(self.y_host, self.y)
-#                break
 
     def copy_array(self, arr_like, arr_device):
         """

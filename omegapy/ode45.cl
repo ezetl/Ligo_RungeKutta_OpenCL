@@ -27,23 +27,24 @@ __kernel void evaluate_step(__global FLOAT * y,
                        const int nvars)
 {
     /*TODO: esto se hace una vez por system, ver como*/
-    unsigned int gid = get_global_id(0);
-    unsigned int gr_id = get_group_id(0);
-    unsigned int offs = nvars * gr_id;
+    unsigned int gid = get_group_id(0);
+    unsigned int id = get_global_id(0);
+    /*offset to the first variable of each state (omega)*/
+    unsigned int om_offs = nvars * gid;
     FLOAT yinf = -1e10;
     FLOAT dif = 0;
-    FLOAT delt = delta[gr_id];
+    FLOAT delt = delta[gid];
     FLOAT abs_y = 0;
     int i=0;
 
     for(i=0; i<nvars; i++){
-        dif = fabs(y5[offs + i] - y4[offs + i]);
+        dif = fabs(y5[om_offs + i] - y4[om_offs + i]);
         delt = dif * (dif > delt) + delt * (dif <= delt);
-        abs_y = fabs(y[offs + i]);
+        abs_y = fabs(y[om_offs + i]);
         yinf = abs_y * (abs_y > yinf) + yinf * (abs_y <= yinf);
     }
-    delta[gr_id] = delt;
-    tau[gr_id] = fmax(yinf, 1) * tol;
+    delta[gid] = delt;
+    tau[gid] = fmax(yinf, 1) * tol;
 }
 
 
@@ -66,21 +67,21 @@ __kernel void update_variables(__global FLOAT * y5,
     unsigned int gid = get_group_id(0);
     unsigned int lid = get_local_id(0);
     /*Group offset, for indexing y5[0] = omega*/
-    unsigned int gr_offs = gid * nvars;
+    unsigned int om_offs = gid * nvars;
 
     const int power = 1./6.;
-    FLOAT diff = (y5[gr_offs] <= final_omega + tol);
+    FLOAT diff = (y5[om_offs] <= final_omega + tol);
     FLOAT tim = time[gid] + h[gid] * (delta[gid] <= tau[gid] && diff);
     n_ok[gid] = n_ok[gid] + (delta[gid] <= tau[gid] && diff);
     n_bad[gid] = n_bad[gid] + (1 - (delta[gid] <= tau[gid] && diff));
 
     /*New values of y[i]*/
-    y[id] = y5[id] * (delta[gid] <= tau[gid] && diff) \
-            + y[id] * (1 - (delta[gid] <= tau[gid] && diff));
+    int delta_tau = (delta[gid] <= tau[gid] && diff);
+    y[id] = y5[id] * delta_tau + y[id] * (1 - delta_tau); 
 
     delta[gid] = 1e-16 * (delta[gid] == 0) + delta[gid];
 
-    if(fabs(y5[gr_offs] - final_omega) < tol){
+    if(fabs(y5[om_offs] - final_omega) < tol){
         stop[gid] = 1;
     }
 
@@ -111,7 +112,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
 {
     unsigned int i=0;
     unsigned int id = get_global_id(0);
-    unsigned int hid = get_group_id(0);
+    unsigned int gid = get_group_id(0);
     unsigned int lid = get_local_id(0);
 
     for(i=0; i<nstep; i++){
@@ -119,10 +120,14 @@ __kernel void rk_step(__global FLOAT * ytmp,
         /*this is basically ytmp[i] = y[i] + h[]*a21*k1, etc...*/
         /*Note: nstep is never zero. That is because row 0 of array "a" is never used*/
         /*TODO: agregar chequeos sobre los indices, por ej: que el indice de a no overflowee de la matriz de datos de a*/
-        ytmp[id] +=  a[nstep*steps+i] * k[i*nvars + hid*steps + lid];
+        /*Use steps-1, arrays a, b4, and b5 are bounded by 6 (STEPS-1)*/
+        //ytmp[id] +=  a[nstep*(steps-1)+i] * k[i*nvars + hid*steps + lid];
+        //k[ offset of current step + offset of current batch + offset of variable ]
+        ytmp[id] +=  k[i*nvars + gid*steps*nvars + lid];
+
 
     }
-    ytmp[id] *= h[hid];
+    ytmp[id] *= h[gid];
     ytmp[id] += y[id];
 }
 
@@ -149,6 +154,7 @@ __kernel void f_rhs(__global FLOAT * state,
         const FLOAT m1 = 0.5;
         const FLOAT chi1 = 0.5, chi2 = 0.5;
         unsigned int gid = get_group_id(0);
+        unsigned int id = get_global_id(0);
 
         FLOAT omega = state[gid];
         FLOAT S1ux  = state[gid + 1],
@@ -178,7 +184,7 @@ __kernel void f_rhs(__global FLOAT * state,
             error[gid] += 1;
         }
 
-        unsigned int offs = curr_step*nvars + gid*steps;
+        unsigned int offs = curr_step*nvars + id*steps*nvars;
         rhsd[offs] = omega;
         rhsd[offs + 1] = S1ux;
         rhsd[offs + 2] = S1uy;
