@@ -123,7 +123,6 @@ ode45(double t1, double t2, double *y, int N,
 			ytmp[i] = y[i]+
 				h*(a71*k1[i]+ +a73*k3[i]+a74*k4[i]+a75*k5[i]+a76*k6[i]);
 		ierr += f_rhs(ytmp, k2); // note that k2 is used for k7
-		printf("ierror: %d\n", ierr);
 		// 4th order estimate
 		for (i = 0; i < N; i++)
 			y4[i] = y[i]+h*(b4_1*k1[i]+b4_3*k3[i]+b4_4*k4[i]+
@@ -166,8 +165,11 @@ ode45(double t1, double t2, double *y, int N,
 		delta = 1e-16*(delta == 0) + delta;
 
 		// |omega - omega_final| < tolerance
-		if (fabs(y5[0]-0.1) < tol)
+		if (fabs(y5[0]-0.1) < tol){
+            printf("entro al break\n");
+            printf("y5[0] = %f", y5[0]);		
 			break;
+		}
 
 		//h=fmin(hmax,0.8*h*powf(tau/delta,power)); single precision
 		h = fmin(hmax, 0.8*h*pow(tau/delta, power))*(h != 0)*diff+ h*(1-diff)/2;

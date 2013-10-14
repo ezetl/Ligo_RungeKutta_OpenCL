@@ -1,4 +1,5 @@
 #define FLOAT float
+#define DELTA (-1e10)
 #include "omega_rhs.inc"
 
 
@@ -33,9 +34,11 @@ __kernel void evaluate_step(__global FLOAT * y,
     unsigned int om_offs = nvars * gid;
     FLOAT yinf = -1e10;
     FLOAT dif = 0;
-    FLOAT delt = delta[gid];
     FLOAT abs_y = 0;
     int i=0;
+
+    delta[gid] = DELTA;
+    FLOAT delt = delta[gid];
 
     for(i=0; i<nvars; i++){
         dif = fabs(y5[om_offs + i] - y4[om_offs + i]);
@@ -77,7 +80,7 @@ __kernel void update_variables(__global FLOAT * y5,
 
     /*New values of y[i]*/
     int delta_tau = (delta[gid] <= tau[gid] && diff);
-    y[id] = y5[id] * delta_tau + y[id] * (1 - delta_tau); 
+    y[id] = y5[id] * delta_tau + y[id] * (1 - delta_tau);
 
     delta[gid] = 1e-16 * (delta[gid] == 0) + delta[gid];
 
@@ -181,7 +184,7 @@ __kernel void f_rhs(__global FLOAT * state,
             isnan(S1ux) || isnan(S1uy) || isnan(S1uz) ||
             isnan(S2ux) || isnan(S2uy) || isnan(S2uz) ||
             isnan(LNx) || isnan(LNy) || isnan(LNz)) {
-            error[gid] += 1;
+                error[gid] = 1;
         }
 
         unsigned int offs = curr_step*nvars + id*steps*nvars;
