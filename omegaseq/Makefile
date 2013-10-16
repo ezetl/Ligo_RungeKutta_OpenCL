@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -Wall -lm -fPIC
+CFLAGS = -Wall -lm -fPIC -std=c99
 
 SOURCES = ode45.c pn_rhs.c
 OBJECTS = $(SOURCES:.c=.o)

@@ -9,9 +9,9 @@ __kernel void check_step(__global FLOAT * h,
 	                     const FLOAT t2,
 	                     const int hmin)
 {
-    const int id = get_group_id(0);
-
-    if (time[id] >= t2 || h[id] < hmin || stops[id] != 0) {
+    const unsigned int id = get_group_id(0);
+    
+    if (time[id] >= t2 || h[id] < hmin || stops[id] == 1) {
         stops[id] = 1;
     }
     /*if (time+h > t2) h = t2-time;*/
@@ -38,15 +38,14 @@ __kernel void evaluate_step(__global FLOAT * y,
     int i=0;
 
     delta[gid] = DELTA;
-    FLOAT delt = delta[gid];
 
     for(i=0; i<nvars; i++){
         dif = fabs(y5[om_offs + i] - y4[om_offs + i]);
-        delt = dif * (dif > delt) + delt * (dif <= delt);
+        delta[gid] = dif * (dif > delta[gid]) + delta[gid] * (dif <= delta[gid]);
         abs_y = fabs(y[om_offs + i]);
         yinf = abs_y * (abs_y > yinf) + yinf * (abs_y <= yinf);
     }
-    delta[gid] = delt;
+
     tau[gid] = fmax(yinf, 1) * tol;
 }
 
@@ -72,15 +71,17 @@ __kernel void update_variables(__global FLOAT * y5,
     /*Group offset, for indexing y5[0] = omega*/
     unsigned int om_offs = gid * nvars;
 
-    const int power = 1./6.;
-    FLOAT diff = (y5[om_offs] <= final_omega + tol);
-    FLOAT tim = time[gid] + h[gid] * (delta[gid] <= tau[gid] && diff);
-    n_ok[gid] = n_ok[gid] + (delta[gid] <= tau[gid] && diff);
-    n_bad[gid] = n_bad[gid] + (1 - (delta[gid] <= tau[gid] && diff));
+    const FLOAT power = 1./(FLOAT)6.;
+    int ome_cond = (y5[om_offs] <= final_omega + tol);
+    int diff = (delta[gid] <= tau[gid]) && ome_cond;
+
+    time[gid] = time[gid] + h[gid] * diff;
 
     /*New values of y[i]*/
-    int delta_tau = (delta[gid] <= tau[gid] && diff);
-    y[id] = y5[id] * delta_tau + y[id] * (1 - delta_tau);
+    y[id] = y5[id] * diff + y[id] * (1 - diff);
+
+    n_ok[gid] = n_ok[gid] + diff;
+    n_bad[gid] = n_bad[gid] + (1 - diff);
 
     delta[gid] = 1e-16 * (delta[gid] == 0) + delta[gid];
 
@@ -89,8 +90,8 @@ __kernel void update_variables(__global FLOAT * y5,
     }
 
     /*XXX: ojo, el 2 lo pone como un entero, es asi?*/
-    h[gid] = fmin(hmax, 0.8 * h[gid] * pow(tau[gid] / delta[gid], power)) \
-             * (h[gid] != 0) * diff + h[gid] * (1 - diff) / 2;
+    h[gid] = fmin(hmax, 0.8f * h[gid] * pow(tau[gid] / delta[gid], power)) \
+             * (h[gid] != 0) * ome_cond + h[gid] * (1 - ome_cond) / 2;
 }
 
 
@@ -106,9 +107,9 @@ __kernel void update_variables(__global FLOAT * y5,
  */
 __kernel void rk_step(__global FLOAT * ytmp,
                       __global FLOAT * y,
-                      __global FLOAT * k,
-                      __global FLOAT * a,
-                      __global FLOAT * h,
+                      const __global FLOAT * k,
+                      const __global FLOAT * a,
+                      const __global FLOAT * h,
                       const int nstep,
                       const int steps,
                       const int nvars)
@@ -118,6 +119,8 @@ __kernel void rk_step(__global FLOAT * ytmp,
     unsigned int gid = get_group_id(0);
     unsigned int lid = get_local_id(0);
 
+    FLOAT tmp = ytmp[id];
+
     for(i=0; i<nstep; i++){
         /*adds 1 to i because in a[0] row, there are only zeros*/
         /*this is basically ytmp[i] = y[i] + h[]*a21*k1, etc...*/
@@ -126,12 +129,12 @@ __kernel void rk_step(__global FLOAT * ytmp,
         /*Use steps-1, arrays a, b4, and b5 are bounded by 6 (STEPS-1)*/
         //ytmp[id] +=  a[nstep*(steps-1)+i] * k[i*nvars + hid*steps + lid];
         //k[ offset of current step + offset of current batch + offset of variable ]
-        ytmp[id] +=  k[i*nvars + gid*steps*nvars + lid];
-
-
+        tmp +=  a[nstep*(steps-1) + i] * k[i*nvars + gid*steps*nvars + lid];
     }
-    ytmp[id] *= h[gid];
-    ytmp[id] += y[id];
+
+    tmp *= h[gid];
+    tmp += y[id];
+    ytmp[id] = tmp;
 }
 
 
@@ -158,7 +161,8 @@ __kernel void f_rhs(__global FLOAT * state,
         const FLOAT chi1 = 0.5, chi2 = 0.5;
         unsigned int gid = get_group_id(0);
         unsigned int id = get_global_id(0);
-
+        unsigned int lid = get_local_id(0);
+        
         FLOAT omega = state[gid];
         FLOAT S1ux  = state[gid + 1],
               S1uy  = state[gid + 2],
@@ -186,8 +190,38 @@ __kernel void f_rhs(__global FLOAT * state,
             isnan(LNx) || isnan(LNy) || isnan(LNz)) {
                 error[gid] = 1;
         }
+//        if (isnan(omega) ) {
+//                error[gid] = 100;
+//        }
+//        if (isnan(S1ux) ) {
+//                error[gid] = 200;
+//        }
+//        if (isnan(S1uy) ) {
+//                error[gid] = 300;
+//        }
+//        if (isnan(S1uz) ) {
+//                error[gid] = 400;
+//        }
+//        if (isnan(S2ux) ) {
+//                error[gid] = 500;
+//        }
+//        if (isnan(S2uy) ) {
+//                error[gid] = 600;
+//        }
+//        if (isnan(S2uz)) {
+//                error[gid] = 700;
+//        }
+//        if (isnan(LNx)) {
+//                error[gid] = 800;
+//        }
+//        if (isnan(LNy)) {
+//                error[gid] = 900;
+//        }
+//        if (isnan(LNz)) {
+//                error[gid] = 1000;
+//        }
 
-        unsigned int offs = curr_step*nvars + id*steps*nvars;
+        unsigned int offs = curr_step*nvars + gid*steps*nvars;
         rhsd[offs] = omega;
         rhsd[offs + 1] = S1ux;
         rhsd[offs + 2] = S1uy;
@@ -198,4 +232,14 @@ __kernel void f_rhs(__global FLOAT * state,
         rhsd[offs + 7] = LNx;
         rhsd[offs + 8] = LNy;
         rhsd[offs + 9] = LNz;
+//        rhsd[offs] = state[gid];
+//        rhsd[offs + 1] = state[gid + 1];
+//        rhsd[offs + 2] = state[gid + 2];
+//        rhsd[offs + 3] = state[gid + 3];
+//        rhsd[offs + 4] = state[gid + 4];
+//        rhsd[offs + 5] = state[gid + 5];
+//        rhsd[offs + 6] = state[gid + 6];
+//        rhsd[offs + 7] = state[gid + 7];
+//        rhsd[offs + 8] = state[gid + 8];
+//        rhsd[offs + 9] = state[gid + 9];
 }

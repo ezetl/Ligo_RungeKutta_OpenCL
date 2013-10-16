@@ -6,8 +6,7 @@ TODO:
 
 - Ver como ejecutar kernels por system y no por work group, o en su defecto, encontrar una forma de compartir la memoria por work group
 
-- DEBUGGEAR TODO Y HACER QUE ANDE. EMPEZAR POR EL update_variable, DEVUELVE VERDURA
-- Ver porque da Nan en f_rhs a partir del 5º step
+- EL F_RHS DEVUELVE NAN EN EL SEGUNDO PASO
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)

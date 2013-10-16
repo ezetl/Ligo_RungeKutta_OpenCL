@@ -4,6 +4,8 @@ import numpy as np
 import pyopencl as cl
 
 
+
+np.set_printoptions(suppress=True)
 FLOAT = np.float32
 INT = np.int32
 TOL = 1e-7  #  tolerance for solver
@@ -70,7 +72,7 @@ class Ode45:
         b5_host = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=FLOAT)
         #auxiliar arrays
         self.k_host = np.zeros(shape=(self.global_size*STEPS,), dtype=FLOAT)
-        ytemp_host = np.zeros(shape=(self.nvars,), dtype=FLOAT)
+        self.ytemp_host = np.zeros(shape=(self.nvars,), dtype=FLOAT)
         #states
         self.y_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
         y4_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
@@ -90,7 +92,7 @@ class Ode45:
         self.tau_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
         self.delta_host = np.array([DELTA]*self.batch, dtype=FLOAT)
         self.error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
-        h_host = np.array([self.hmin]*self.batch, dtype=FLOAT)
+        self.h_host = np.array([self.hmin]*self.batch, dtype=FLOAT)
         time_host = np.array([self.t1]*self.batch, dtype=FLOAT)
         self.stop_host = np.zeros(shape=(self.batch,), dtype=INT)
         n_ok_host = np.zeros(shape=(self.batch,), dtype=INT)
@@ -104,11 +106,11 @@ class Ode45:
         self.y4 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=y4_host)
         self.y5 = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.y5_host)
         self.k = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.k_host)
-        self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=ytemp_host)
+        self.ytemp = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.ytemp_host)
         self.tau = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.tau_host)
         self.delta = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.delta_host)
         self.error =  cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.error_host)
-        self.h = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h_host)
+        self.h = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.h_host)
         self.time = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=time_host)
         self.stop = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=self.stop_host)
         self.n_ok = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=n_ok_host)
@@ -169,41 +171,32 @@ class Ode45:
         update_variables = self.program.update_variables
         update_variables.set_scalar_arg_dtypes([None, None, None, None, None, None, None, None, None, FLOAT, FLOAT, FLOAT, INT])
 
-        nstep = 0
-
         for cond in self.init_cond:
-        	 #TODO: CAMBIAR ESTO POR EL ARRAY QUE CONTENGA TODO EL BATCH CON CONDICIONES INICIALES (NO NECESARIAMENTE ES UNA SOLA)
+            #TODO: CAMBIAR ESTO POR EL ARRAY QUE CONTENGA TODO EL BATCH CON CONDICIONES INICIALES (NO NECESARIAMENTE ES UNA SOLA)
             self.y = cl.Buffer(self.ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=cond)
             while(True):
-                nstep += 1
-                if(nstep%1000==0):
-                    print("step {}".format(nstep))
-                #print("paso {}".format(nstep))
-                self.nsteps += 1
                 check_step(self.queue, (self.global_size,), (self.local_size,), self.h, self.time, self.stop, self.t2, self.hmin)
-
                 #This copy the stop array and check if we need to stop.
                 #TODO: find a way to do this in gpu and avoid copying arrays in every step
                 stop = self.copy_array(self.stop_host, self.stop)
 
                 if any(stop):
                     #TODO: separar esto para los errores y la condicion de terminacion
-                    break
-
+                        print "break in step {}".format(self.nsteps)
+                        self.print_array(self.stop_host, self.stop)
+                        break
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
                 f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.stop, self.nvars, STEPS, INT(0))
                 for i in range(1,STEPS): # cantidad de steps, es del 1 al 7
                     rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars)
                     f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
-#                    self.print_array(self.y_host, self.ytemp)
-#                break
                 # 4º y 5º order
                 self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, INT(STEPS), INT(0), INT(self.nvars))
                 self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b5, self.h, INT(STEPS-1), INT(0), INT(self.nvars))
                 evaluate_step(self.queue, (self.global_size,), (self.local_size,), self.y, self.y4, self.y5, self.tau, self.delta, TOL, self.nvars)
-                self.print_array(self.y5_host, self.y5)
                 update_variables(self.queue, (self.global_size,), (self.local_size,), self.y5, self.delta, self.tau, self.time, self.h, self.y, self.n_ok, self.n_bad, self.stop, TOL, self.hmax, self.final_omega, self.nvars)
+                self.nsteps += 1
 
     def copy_array(self, arr_like, arr_device):
         """
@@ -221,3 +214,4 @@ class Ode45:
         """
         c = self.copy_array(arr_like, arr_device)
         print c
+
