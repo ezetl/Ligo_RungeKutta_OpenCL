@@ -180,19 +180,25 @@ class Ode45:
                 #TODO: find a way to do this in gpu and avoid copying arrays in every step
                 stop = self.copy_array(self.stop_host, self.stop)
 
+#                if self.nsteps%19000==0:
+#                    print self.nsteps
+#                    self.print_array(self.y_host, self.y)
+
                 if any(stop):
                     #TODO: separar esto para los errores y la condicion de terminacion
                     print "break"
                     self.print_array(self.stop_host, self.stop)
+                    
                     break
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
                 f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.stop, self.nvars, STEPS, INT(0))
-                #for i in range(1,STEPS): # cantidad de steps, es del 1 al 7
-                    #rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars, 6, 1)
-                    #f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
+                for i in range(1,STEPS): # cantidad de steps, es del 1 al 7
+                    rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars, 6, 1)
+#                    print "ytmp"
+#                    self.print_array(self.ytemp_host, self.ytemp)
+                    f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
                 # 4º y 5º order
-
                # print "y4 antes rk"
                 #self.print_array(self.y4_host, self.y4)
                 self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, INT(STEPS-1), INT(STEPS), INT(self.nvars), INT(6), INT(0))
@@ -210,8 +216,8 @@ class Ode45:
                 #print "antes del update"
                 #self.print_array(self.y_host, self.y)
                 update_variables(self.queue, (self.global_size,), (self.local_size,), self.y5, self.delta, self.tau, self.time, self.h, self.y, self.n_ok, self.n_bad, self.stop, TOL, self.hmax, self.final_omega, self.nvars)
-                print "despues del update"
-                self.print_array(self.y_host, self.y)
+#                print "despues del update"
+#                self.print_array(self.y_host, self.y)
                 self.nsteps += 1
             print "res"
             self.print_array(self.y_host, self.y)

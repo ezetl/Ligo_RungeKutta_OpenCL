@@ -6,13 +6,7 @@ TODO:
 
 - Ver como ejecutar kernels por system y no por work group, o en su defecto, encontrar una forma de compartir la memoria por work group
 
-- EL F_RHS DEVUELVE NAN EN EL SEGUNDO PASO
-    - el a se indexa bien y contiene bien los valores del paso en el que esta
-    - el k se indexa bien
-    - la multiplicacion de a*k da bien, nada raro
-    - Ah, soy un pelotudo. Fin del bug.
-
-- EL UPDATE TIRA VERDURA
+- TODAVIA NO CONVERGE, LUEGO CHEQUEAR QUE EN y5 E y4 ELIJA BIEN LOS VALORES DE b5 Y b4 RESPECTIVAMENTE, Y VOLVER A REVISAR QUE DE LOS MISMOS VALORES DE YTEMP.
     
 
 Ideas:
