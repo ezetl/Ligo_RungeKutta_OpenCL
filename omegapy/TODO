@@ -7,6 +7,13 @@ TODO:
 - Ver como ejecutar kernels por system y no por work group, o en su defecto, encontrar una forma de compartir la memoria por work group
 
 - EL F_RHS DEVUELVE NAN EN EL SEGUNDO PASO
+    - el a se indexa bien y contiene bien los valores del paso en el que esta
+    - el k se indexa bien
+    - la multiplicacion de a*k da bien, nada raro
+    - Ah, soy un pelotudo. Fin del bug.
+
+- EL UPDATE TIRA VERDURA
+    
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)

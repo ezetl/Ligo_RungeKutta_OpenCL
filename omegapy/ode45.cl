@@ -79,7 +79,6 @@ __kernel void update_variables(__global FLOAT * y5,
 
     /*New values of y[i]*/
     y[id] = y5[id] * diff + y[id] * (1 - diff);
-
     n_ok[gid] = n_ok[gid] + diff;
     n_bad[gid] = n_bad[gid] + (1 - diff);
 
@@ -112,14 +111,15 @@ __kernel void rk_step(__global FLOAT * ytmp,
                       const __global FLOAT * h,
                       const int nstep,
                       const int steps,
-                      const int nvars)
+                      const int nvars,
+                      const int a_row_len,
+                      const int b_offs)
 {
     unsigned int i=0;
     unsigned int id = get_global_id(0);
     unsigned int gid = get_group_id(0);
     unsigned int lid = get_local_id(0);
-
-    FLOAT tmp = ytmp[id];
+    float sum = 0;
 
     for(i=0; i<nstep; i++){
         /*adds 1 to i because in a[0] row, there are only zeros*/
@@ -129,12 +129,14 @@ __kernel void rk_step(__global FLOAT * ytmp,
         /*Use steps-1, arrays a, b4, and b5 are bounded by 6 (STEPS-1)*/
         //ytmp[id] +=  a[nstep*(steps-1)+i] * k[i*nvars + hid*steps + lid];
         //k[ offset of current step + offset of current batch + offset of variable ]
-        tmp +=  a[nstep*(steps-1) + i] * k[i*nvars + gid*steps*nvars + lid];
+        //b_offs is only used in b4 and b5 arrays. When using with array a, this should 
+        //be 1
+        sum +=  a[b_offs*nstep*a_row_len + i] * k[i*nvars + gid*steps*nvars + lid];
     }
 
-    tmp *= h[gid];
-    tmp += y[id];
-    ytmp[id] = tmp;
+    sum *= h[gid];
+    ytmp[id] = y[id] + sum; 
+    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
 

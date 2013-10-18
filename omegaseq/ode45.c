@@ -109,14 +109,11 @@ ode45(double t1, double t2, double *y, int N,
 		/*if (time+h > t2) h = t2-time;*/
 		h = (time+h > t2)*(t2-time) + h*(time+h <= t2);
 
-
-        printf("h: %lf\n", h);
-        printf("y\n");
-        print_array(y, N);
 		// compute slopes k1...k7
 		ierr += f_rhs(y, k1);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+h*a21*k1[i];
+
 /*			printf("ytmp\n");*/
 /*			print_array(ytmp, N);*/
 		ierr += f_rhs(ytmp, k2);
@@ -124,26 +121,32 @@ ode45(double t1, double t2, double *y, int N,
 			ytmp[i] = y[i]+h*(a31*k1[i]+a32*k2[i]);
 /*			printf("ytmp\n");*/
 /*			print_array(ytmp, N);*/
+
+
 		ierr += f_rhs(ytmp, k3);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+h*(a41*k1[i]+a42*k2[i]+a43*k3[i]);
 /*			printf("ytmp\n");*/
 /*			print_array(ytmp, N);*/
+
+
 		ierr += f_rhs(ytmp, k4);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+h*(a51*k1[i]+a52*k2[i]+a53*k3[i]+a54*k4[i]);
-/*			printf("ytmp\n");*/
-/*			print_array(ytmp, N);*/
 		ierr += f_rhs(ytmp, k5);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+
 				h*(a61*k1[i]+a62*k2[i]+a63*k3[i]+a64*k4[i]+a65*k5[i]);
 /*				printf("ytmp\n");*/
 /*				print_array(ytmp, N);*/
+
+
 		ierr += f_rhs(ytmp, k6);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+
 				h*(a71*k1[i]+ +a73*k3[i]+a74*k4[i]+a75*k5[i]+a76*k6[i]);
+
+
 		ierr += f_rhs(ytmp, k2); // note that k2 is used for k7
 		// 4th order estimate
 		for (i = 0; i < N; i++)
@@ -185,6 +188,10 @@ ode45(double t1, double t2, double *y, int N,
 		// adjust time step
 		/*if (delta == 0) delta = 1e-16;*/
 		delta = 1e-16*(delta == 0) + delta;
+
+        if(nstp==1){
+            break;
+        }
 
 		// |omega - omega_final| < tolerance
 		if (fabs(y5[0]-0.1) < tol){
