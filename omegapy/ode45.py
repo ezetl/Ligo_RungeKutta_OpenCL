@@ -188,30 +188,19 @@ class Ode45:
                     #TODO: separar esto para los errores y la condicion de terminacion
                     print "break"
                     self.print_array(self.stop_host, self.stop)
-                    
+
                     break
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
                 f_rhs(self.queue, (self.global_size,), (self.local_size,), self.y, self.k, self.stop, self.nvars, STEPS, INT(0))
                 for i in range(1,STEPS): # cantidad de steps, es del 1 al 7
                     rk_step(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.y, self.k, self.a, self.h, i, STEPS, self.nvars, 6, 1)
-#                    print "ytmp"
-#                    self.print_array(self.ytemp_host, self.ytemp)
+                    #print "ytmp"
+                    #self.print_array(self.ytemp_host, self.ytemp)
                     f_rhs(self.queue, (self.global_size,), (self.local_size,), self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
                 # 4º y 5º order
-               # print "y4 antes rk"
-                #self.print_array(self.y4_host, self.y4)
                 self.program.rk_step(self.queue, (self.global_size,), (self.local_size,), self.y4, self.y, self.k, self.b4, self.h, INT(STEPS-1), INT(STEPS), INT(self.nvars), INT(6), INT(0))
-               # print "y4 despues rk"
-                #self.print_array(self.y4_host, self.y4)
-
-                #print "y5 antes de rk"
-                #self.print_array(self.y5_host, self.y5)
-
                 self.program.rk_step(self.queue, (self.global_size,),(self.local_size,), self.y5, self.y, self.k, self.b5, self.h, INT(STEPS-2), INT(STEPS), INT(self.nvars), INT(5), INT(0))
-                #print "y5 despues de rk"
-                #self.print_array(self.y5_host, self.y5)
-
                 evaluate_step(self.queue, (self.global_size,), (self.local_size,), self.y, self.y4, self.y5, self.tau, self.delta, TOL, self.nvars)
                 #print "antes del update"
                 #self.print_array(self.y_host, self.y)
@@ -219,6 +208,9 @@ class Ode45:
 #                print "despues del update"
 #                self.print_array(self.y_host, self.y)
                 self.nsteps += 1
+                if(self.nsteps>=19000 and self.nsteps%1000==0):
+                        print "paso {}".format(self.nsteps)
+                        self.print_array(self.y_host, self.y)
             print "res"
             self.print_array(self.y_host, self.y)
 

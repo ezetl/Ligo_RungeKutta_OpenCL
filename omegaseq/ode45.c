@@ -114,20 +114,20 @@ ode45(double t1, double t2, double *y, int N,
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+h*a21*k1[i];
 
-			printf("ytmp\n");
-			print_array(ytmp, N);
+			//printf("ytmp\n");
+			//print_array(ytmp, N);
 		ierr += f_rhs(ytmp, k2);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+h*(a31*k1[i]+a32*k2[i]);
-			printf("ytmp\n");
-			print_array(ytmp, N);
+			//printf("ytmp\n");
+			//print_array(ytmp, N);
 
 
 		ierr += f_rhs(ytmp, k3);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+h*(a41*k1[i]+a42*k2[i]+a43*k3[i]);
-			printf("ytmp\n");
-			print_array(ytmp, N);
+			//printf("ytmp\n");
+			//print_array(ytmp, N);
 
 
 		ierr += f_rhs(ytmp, k4);
@@ -137,27 +137,28 @@ ode45(double t1, double t2, double *y, int N,
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+
 				h*(a61*k1[i]+a62*k2[i]+a63*k3[i]+a64*k4[i]+a65*k5[i]);
-				printf("ytmp\n");
-				print_array(ytmp, N);
+			//	printf("ytmp\n");
+			//	print_array(ytmp, N);
 
 
 		ierr += f_rhs(ytmp, k6);
 		for (i = 0; i < N; i++)
 			ytmp[i] = y[i]+
 				h*(a71*k1[i]+ +a73*k3[i]+a74*k4[i]+a75*k5[i]+a76*k6[i]);
-			printf("ytmp\n");
-			print_array(ytmp, N);
+			//printf("ytmp\n");
+			//print_array(ytmp, N);
 
 		ierr += f_rhs(ytmp, k2); // note that k2 is used for k7
 		// 4th order estimate
 		for (i = 0; i < N; i++)
 			y4[i] = y[i]+h*(b4_1*k1[i]+b4_3*k3[i]+b4_4*k4[i]+
 					b4_5*k5[i]+b4_6*k6[i]+b4_7*k7[i]);
+
 		// 5th order estimate
 		for (i = 0; i < N; i++)
 			y5[i] = y[i]+h*(b5_1*k1[i]+b5_3*k3[i]+b5_4*k4[i]+
 					b5_5*k5[i]+b5_6*k6[i]);
-		
+
 		// compare truncation error und acceptable error
 		delta = -1e10;
 		yinf = -1e10;
@@ -189,10 +190,6 @@ ode45(double t1, double t2, double *y, int N,
 		// adjust time step
 		/*if (delta == 0) delta = 1e-16;*/
 		delta = 1e-16*(delta == 0) + delta;
-
-        if(nstp==1){
-            break;
-        }
 
 		// |omega - omega_final| < tolerance
 		if (fabs(y5[0]-0.1) < tol){
