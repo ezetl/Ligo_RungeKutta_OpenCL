@@ -23,8 +23,6 @@ class Ode45:
     def __init__(self, batch=1, nvars=10):
         self.opencl_init()
         self.init_cond = []
-        # TODO: hacer chequeos sobre el batch?? no se me ocurrue que podria
-        # llegar a pasar
         self.batch = batch
         self.nvars = nvars
         self.global_size = self.batch * self.nvars
@@ -45,17 +43,16 @@ class Ode45:
         self.queue = cl.CommandQueue(self.ctx)
 
     def load_program(self, program):
-        f = open(program, 'r')
-        code = f.read()
-        self.code = code
-        self.program = cl.Program(self.ctx, code).build()
+        file = open(program, 'r')
+        self.program = cl.Program(self.ctx, file.read()).build()
+        file.close()
 
     def data_init(self):
         """
         This creates some arrays in the device with data used for further
         calculations.
         """
-        # Constants
+        # Dormand-Prince coefficients
         a = np.array(
                 [0.,0.,0.,0.,0.,0.,
                  1./5.,0.,0.,0.,0.,0.,
@@ -65,21 +62,23 @@ class Ode45:
                  9017./3168., -355./33., 46732./5247., 49./176., -5103./18656.,0.,
                  35./384., 0., 500./1113., 125./192., -2187./6784., 11./84.
                 ], dtype=FLOAT)
-        #4th order b coeffs
+        # 4th order b coeffs
         b4 = np.array([5179./57600., 7571./16695., 393./640., -92097./339200., 187./2100., 1./40.],
                 dtype=FLOAT)
-        #5th order b coeffs
+        # 5th order b coeffs
         b5_host = np.array([35./384., 500./1113., 125./192., -2187./6784., 11./84.], dtype=FLOAT)
-        #auxiliar arrays
+        # auxiliar arrays
         self.k_host = np.zeros(shape=(self.global_size*STEPS,), dtype=FLOAT)
         self.ytemp_host = np.zeros(shape=(self.nvars,), dtype=FLOAT)
-        #states
+        # states, y4, and y5 are used for 4º and 5º order calculations
         self.y_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
         self.y4_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
         self.y5_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
 
+        # mem flags, used to copy data to the device
         mf = cl.mem_flags
 
+        # some constants
         self.t1 = FLOAT(0)
         self.t2 = FLOAT(1e10)
         self.hmin = (self.t2-self.t1)/1e20
@@ -89,6 +88,7 @@ class Ode45:
         hh = min(self.hmax, hh)
         hh = max(self.hmin, hh)
 
+        # arrays for errors and other stuff
         self.tau_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
         self.delta_host = np.array([DELTA]*self.batch, dtype=FLOAT)
         self.error_host = np.zeros(shape=(self.batch,), dtype=FLOAT)
@@ -98,7 +98,7 @@ class Ode45:
         n_ok_host = np.zeros(shape=(self.batch,), dtype=INT)
         n_bad_host = np.zeros(shape=(self.batch,), dtype=INT)
 
-        #Copy arrays from host to device
+        # Copy all arrays from host to device
         self.a = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
         self.b4 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b4)
         self.b5 = cl.Buffer(self.ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b5_host)
@@ -177,7 +177,7 @@ class Ode45:
             while(True):
                 check_step(self.queue, (self.global_size,), (self.local_size,), self.h, self.time, self.stop, self.t2, self.hmin)
                 #This copy the stop array and check if we need to stop.
-                #TODO: find a way to do this in gpu and avoid copying arrays in every step
+                #TODO: find a way to do this in gpu and avoid copying arrays in every step (events?)
                 stop = self.copy_array(self.stop_host, self.stop)
 
 #                if self.nsteps%19000==0:
@@ -188,7 +188,6 @@ class Ode45:
                     #TODO: separar esto para los errores y la condicion de terminacion
                     print "break"
                     self.print_array(self.stop_host, self.stop)
-
                     break
                 #Calculate f_rhs with initial values. The number 0 is because we want
                 #to use the first portion of self.k array
