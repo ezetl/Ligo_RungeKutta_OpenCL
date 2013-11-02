@@ -1,15 +1,16 @@
 # coding: utf-8
+from itertools import islice
 import numpy as np
 import pyopencl as cl
 
 
 np.set_printoptions(suppress=True)
-FLOAT = np.float32
 INT = np.int32
 TOL = 1e-7  # Tolerance for solver
 DELTA = -1e10
 YINF = DELTA
 STEPS = 7
+INIT_COND = "init_cond.dat"
 mf = cl.mem_flags
 
 
@@ -19,13 +20,18 @@ class Ode45:
     and running the algorithm in the devices.
     """
 
-    def __init__(self, batch=1, nvars=10):
-        self.opencl_init()
+    def __init__(self, batch=1, nvars=10, initial_conditions=INIT_COND):
+        assert (initial_conditions is not None) and \
+            (initial_conditions != ""), \
+            "You have to pass the file containing initial conditions."
+        self.init_cond_file = INIT_COND
         self.init_cond = []
         self.batch = batch
         self.nvars = nvars
         self.global_size = self.batch * self.nvars
         self.local_size = nvars
+        self.init_states_batchs = []  # saves the batchs with initial states
+        self.opencl_init()
 
     def opencl_init(self):
         """
@@ -36,6 +42,11 @@ class Ode45:
         self.platform = cl.get_platforms()[0]
         # Get GPU
         self.device = self.platform.get_devices()[0]
+        # Use double precision if available
+        if dev.double_fp_config:
+            FLOAT = np.float64
+        else:
+            FLOAT = np.float32
         # Create context
         self.ctx = cl.Context([self.device])
         # Create queue
@@ -118,28 +129,25 @@ class Ode45:
         self.n_bad = self.copy_to_device(mf.READ_WRITE, n_bad_host)
         #After this,the buffers should be accesible from kernels
 
-    def generate_init_cond(self):
+    def generate_init_cond(self, initial_conditions):
         """
-        This method should generate initial conditions.  For now, we only use
-        one initial condition.
-        self.init_cond =  numpy.array containing values of initial condition:
-                [omega, S1ux, S1uy, S1uz, S2ux, S2uy, S2uz, LNx, LNy, LNz]
-        OJO: ahora las initial_conditions se generan aparte y se guardan en
-        un archivo.
-        modificar esto para que levante el archivo y lo guarde por aca
+        This method loads initial states from a file initial_conditions.
         """
-        #TODO: modificar para que cargue todas las condiciones iniciales
-        omega = FLOAT(0.004)
-        S1ux = FLOAT(0.7071067811865476)
-        S1uy = FLOAT(0.7071067811865476)
-        S1uz = FLOAT(0)
-        S2ux = FLOAT(0)
-        S2uy = FLOAT(0.7071067811865476)
-        S2uz = FLOAT(0.7071067811865476)
-        LNx = LNy = FLOAT(0)
-        LNz = FLOAT(1)
-        ini_cond = [omega, S1ux, S1uy, S1uz, S2ux, S2uy, S2uz, LNx, LNy, LNz]
-        self.init_cond.append(np.array(ini_cond, dtype=FLOAT))
+        try:
+            init_file = open(initial_conditions, "r")
+            with open("init_cond.dat", "r") as f:
+                while True:
+                    next_line_slice = list(islice(f, self.batch))
+                    if not next_line_slice:
+                        break
+                    next_line_slice = [float(x) for elem in next_line_slice
+                                       for x in elem.replace('\n', '').split()]
+                    next_line_slice = np.array(next_line_slice, dtype=FLOAT)
+                    self.init_states_batchs.append(next_line_slice)
+            init_file.close()
+        except IOError:
+            print("Initial conditions file {} does not \
+                    exist.".format(initial_conditions))
 
     def execute(self):
         """
@@ -149,7 +157,7 @@ class Ode45:
         assert(self.t2 > self.t1)
         assert(TOL > 0)
         self.nsteps = 0  # Number of steps used in the process
-        self.generate_init_cond()
+        self.generate_init_cond(INIT_COND)
         self.load_program("ode45.cl")
 
         # Set scalar arguments for OpenCL kernels
@@ -169,12 +177,23 @@ class Ode45:
         update_variables.set_scalar_arg_dtypes([None] * 9 +
                                                [FLOAT, FLOAT, FLOAT, INT])
 
-        for cond in self.init_cond:
-            # TODO: CAMBIAR ESTO POR EL ARRAY QUE CONTENGA TODO EL BATCH CON
-            # CONDICIONES INICIALES (NO NECESARIAMENTE ES UNA SOLA)
-            self.y = self.copy_to_device(mf.READ_WRITE, cond)
-            while(True):
-                check_step(self.queue, (self.global_size,), (self.local_size,),
+        for state_batch in self.init_states_batchs:
+            print "este es el batch"
+            print state_batch
+            # global_size can change if the last batch is smaller than the
+            # original
+            batch_size = min(self.batch, len(state_batch) / self.nvars)
+            global_s = batch_size * self.nvars
+            self.y = self.copy_to_device(mf.READ_WRITE, state_batch)
+            # since global_size can change, so does stop, because it has one
+            # cell per work group
+            self.stop_host = np.zeros(shape=(batch_size,), dtype=INT)
+            self.stop = self.copy_to_device(mf.READ_WRITE, self.stop_host)
+            # count of steps for each batch
+            # TODO: count of steps for each state, must use an array
+            self.nsteps = 0
+            while True:
+                check_step(self.queue, (global_s,), (self.local_size,),
                            self.h, self.time, self.stop, self.t2, self.hmin)
                 # This copy the stop array and check if we need to stop.
                 # TODO: find a way to do this in gpu and avoid copying arrays
@@ -184,38 +203,39 @@ class Ode45:
                 if any(stop):
                     # TODO: separar esto para los errores y cond de terminacion
                     print("break")
+                    print("steps {}".format(self.nsteps))
                     self.print_array(self.stop_host, self.stop)
                     break
                 # Calculate f_rhs with initial values. The number 0 is because
                 # we want to use the first portion of self.k array
-                f_rhs(self.queue, (self.global_size,), (self.local_size,),
+                f_rhs(self.queue, (global_s,), (self.local_size,),
                       self.y, self.k, self.stop, self.nvars, STEPS, INT(0))
-                for i in range(1, STEPS):  # cantidad de steps, es del 1 al 7
-                    rk_step(self.queue, (self.global_size,),
-                            (self.local_size,), self.ytemp, self.y, self.k,
-                            self.a, self.h, i, STEPS, self.nvars, 6, 1)
-                    f_rhs(self.queue, (self.global_size,), (self.local_size,),
-                          self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
-                # 4º y 5º order
-                rk_step(self.queue, (self.global_size,), (self.local_size,),
-                        self.y4, self.y, self.k, self.b4, self.h,
-                        INT(STEPS - 1), INT(STEPS), INT(self.nvars), INT(6),
-                        INT(0))
-                rk_step(self.queue, (self.global_size,), (self.local_size,),
-                        self.y5, self.y, self.k, self.b5, self.h,
-                        INT(STEPS - 2), INT(STEPS), INT(self.nvars), INT(5),
-                        INT(0))
-                evaluate_step(self.queue, (self.global_size,),
-                              (self.local_size,), self.y, self.y4, self.y5,
-                              self.tau, self.delta, TOL, self.nvars)
-                update_variables(self.queue, (self.global_size,),
-                                 (self.local_size,), self.y5, self.delta,
-                                 self.tau, self.time, self.h, self.y,
-                                 self.n_ok, self.n_bad, self.stop, TOL,
-                                 self.hmax, self.final_omega, self.nvars)
+#                for i in range(1, STEPS):  # cantidad de steps, es del 1 al 7
+#                    rk_step(self.queue, (global_s,),
+#                            (self.local_size,), self.ytemp, self.y, self.k,
+#                            self.a, self.h, i, STEPS, self.nvars, 6, 1)
+#                    f_rhs(self.queue, (global_s,), (self.local_size,),
+#                          self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
+#                # 4º y 5º order
+#                rk_step(self.queue, (global_s,), (self.local_size,),
+#                        self.y4, self.y, self.k, self.b4, self.h,
+#                        INT(STEPS - 1), INT(STEPS), INT(self.nvars), INT(6),
+#                        INT(0))
+#                rk_step(self.queue, (global_s,), (self.local_size,),
+#                        self.y5, self.y, self.k, self.b5, self.h,
+#                        INT(STEPS - 2), INT(STEPS), INT(self.nvars), INT(5),
+#                        INT(0))
+#                evaluate_step(self.queue, (global_s,),
+#                              (self.local_size,), self.y, self.y4, self.y5,
+#                              self.tau, self.delta, TOL, self.nvars)
+#                update_variables(self.queue, (global_s,),
+#                                 (self.local_size,), self.y5, self.delta,
+#                                 self.tau, self.time, self.h, self.y,
+#                                 self.n_ok, self.n_bad, self.stop, TOL,
+#                                 self.hmax, self.final_omega, self.nvars)
                 self.nsteps += 1
             print("res")
-            self.print_array(self.y_host, self.y)
+            self.print_array(state_batch, self.y)
 
     def copy_array(self, arr_like, arr_device):
         """

@@ -136,7 +136,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
 
     sum *= h[gid];
     ytmp[id] = y[id] + sum; 
-    barrier(CLK_LOCAL_MEM_FENCE);
+//    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
 

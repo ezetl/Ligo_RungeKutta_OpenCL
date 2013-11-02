@@ -1,13 +1,8 @@
 TODO:
-- Encontrar otra forma de hacer switch entre float64 y float32
-- Cambiar nombres de variables por nombres de mas de una letra (D'oh).
 - Analizar si es posible paralelizar el f_rhs
-- Ver como sacarse de encima tantas self. variables
+- Ver como ejecutar kernels por system y no por work item, o en su defecto, encontrar una forma de compartir la memoria por work group
 
-- Ver como ejecutar kernels por system y no por work group, o en su defecto, encontrar una forma de compartir la memoria por work group
-
-- TODAVIA NO CONVERGE, LUEGO CHEQUEAR QUE EN y5 E y4 ELIJA BIEN LOS VALORES DE b5 Y b4 RESPECTIVAMENTE, Y VOLVER A REVISAR QUE DE LOS MISMOS VALORES DE YTEMP.
-    
+- No FUNCIONA PARA BATCHS MAYORES QUE 1
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
