@@ -12,7 +12,7 @@ YINF = DELTA
 STEPS = 7
 INIT_COND = "init_cond.dat"
 mf = cl.mem_flags
-
+FLOAT = np.float32
 
 class Ode45:
     """
@@ -37,13 +37,14 @@ class Ode45:
         """
         Creates context, queue, etc.
         """
+        global FLOAT
         # Get platform
         ### TODO: multiple devices
         self.platform = cl.get_platforms()[0]
         # Get GPU
         self.device = self.platform.get_devices()[0]
         # Use double precision if available
-        if dev.double_fp_config:
+        if self.device.double_fp_config:
             FLOAT = np.float64
         else:
             FLOAT = np.float32
@@ -210,29 +211,29 @@ class Ode45:
                 # we want to use the first portion of self.k array
                 f_rhs(self.queue, (global_s,), (self.local_size,),
                       self.y, self.k, self.stop, self.nvars, STEPS, INT(0))
-#                for i in range(1, STEPS):  # cantidad de steps, es del 1 al 7
-#                    rk_step(self.queue, (global_s,),
-#                            (self.local_size,), self.ytemp, self.y, self.k,
-#                            self.a, self.h, i, STEPS, self.nvars, 6, 1)
-#                    f_rhs(self.queue, (global_s,), (self.local_size,),
-#                          self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
-#                # 4º y 5º order
-#                rk_step(self.queue, (global_s,), (self.local_size,),
-#                        self.y4, self.y, self.k, self.b4, self.h,
-#                        INT(STEPS - 1), INT(STEPS), INT(self.nvars), INT(6),
-#                        INT(0))
-#                rk_step(self.queue, (global_s,), (self.local_size,),
-#                        self.y5, self.y, self.k, self.b5, self.h,
-#                        INT(STEPS - 2), INT(STEPS), INT(self.nvars), INT(5),
-#                        INT(0))
-#                evaluate_step(self.queue, (global_s,),
-#                              (self.local_size,), self.y, self.y4, self.y5,
-#                              self.tau, self.delta, TOL, self.nvars)
-#                update_variables(self.queue, (global_s,),
-#                                 (self.local_size,), self.y5, self.delta,
-#                                 self.tau, self.time, self.h, self.y,
-#                                 self.n_ok, self.n_bad, self.stop, TOL,
-#                                 self.hmax, self.final_omega, self.nvars)
+                for i in range(1, STEPS):  # cantidad de steps, es del 1 al 7
+                    rk_step(self.queue, (global_s,),
+                            (self.local_size,), self.ytemp, self.y, self.k,
+                            self.a, self.h, i, STEPS, self.nvars, 6, 1)
+                    f_rhs(self.queue, (global_s,), (self.local_size,),
+                          self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
+                # 4º y 5º order
+                rk_step(self.queue, (global_s,), (self.local_size,),
+                        self.y4, self.y, self.k, self.b4, self.h,
+                        INT(STEPS - 1), INT(STEPS), INT(self.nvars), INT(6),
+                        INT(0))
+                rk_step(self.queue, (global_s,), (self.local_size,),
+                        self.y5, self.y, self.k, self.b5, self.h,
+                        INT(STEPS - 2), INT(STEPS), INT(self.nvars), INT(5),
+                        INT(0))
+                evaluate_step(self.queue, (global_s,),
+                              (self.local_size,), self.y, self.y4, self.y5,
+                              self.tau, self.delta, TOL, self.nvars)
+                update_variables(self.queue, (global_s,),
+                                 (self.local_size,), self.y5, self.delta,
+                                 self.tau, self.time, self.h, self.y,
+                                 self.n_ok, self.n_bad, self.stop, TOL,
+                                 self.hmax, self.final_omega, self.nvars)
                 self.nsteps += 1
             print("res")
             self.print_array(state_batch, self.y)

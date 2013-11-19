@@ -152,7 +152,7 @@ __kernel void rk_step(__global FLOAT * ytmp,
 */
 __kernel void f_rhs(__global FLOAT * state,
                     __global FLOAT * rhsd,
-                    __global FLOAT * error,
+                    __global int * error,
                     const int nvars,
                     const int steps,
                     const int curr_step)

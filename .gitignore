@@ -1,0 +1,6 @@
+*.swp
+*.pyc
+*.o
+*~
+pn_cpu
+pn_cpu_omp
