@@ -3,6 +3,9 @@ TODO:
 - Ver como ejecutar kernels por system y no por work item, o en su defecto, encontrar una forma de compartir la memoria por work group
 
 - No FUNCIONA PARA BATCHS MAYORES QUE 1
+  Causa probable: hacer el data_init para cada state_batch, pues el global_size
+puede cambiar. No se me ocurre otro problema que no sea que estoy usando mal el
+tamaño de los arrays. Probablemente el array k este mal, y algunos mas.
 
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)

@@ -3,7 +3,7 @@ import sys
 from ode45 import Ode45
 
 def main():
-    ode45 = Ode45(batch=3)
+    ode45 = Ode45(batch=2)
     ode45.execute()
 
 if __name__ == "__main__":

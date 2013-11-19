@@ -82,7 +82,6 @@ class Ode45:
                            -2187. / 6784., 11. / 84.], dtype=FLOAT)
         # auxiliar arrays
         self.k_host = np.zeros(shape=(self.global_size * STEPS,), dtype=FLOAT)
-        self.ytemp_host = np.zeros(shape=(self.nvars,), dtype=FLOAT)
         # states, y4, and y5 are used for 4º and 5º order calculations
         self.y_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
         self.y4_host = np.zeros(shape=(self.global_size,), dtype=FLOAT)
@@ -119,7 +118,6 @@ class Ode45:
         self.y4 = self.copy_to_device(mf.READ_WRITE, self.y4_host)
         self.y5 = self.copy_to_device(mf.READ_WRITE, self.y5_host)
         self.k = self.copy_to_device(mf.READ_WRITE, self.k_host)
-        self.ytemp = self.copy_to_device(mf.READ_WRITE, self.ytemp_host)
         self.tau = self.copy_to_device(mf.READ_WRITE, self.tau_host)
         self.delta = self.copy_to_device(mf.READ_WRITE, self.delta_host)
         self.error = self.copy_to_device(mf.READ_WRITE, self.error_host)
@@ -186,10 +184,13 @@ class Ode45:
             batch_size = min(self.batch, len(state_batch) / self.nvars)
             global_s = batch_size * self.nvars
             self.y = self.copy_to_device(mf.READ_WRITE, state_batch)
-            # since global_size can change, so does stop, because it has one
+            # since global_size can change, so does stop , because it has one
             # cell per work group
             self.stop_host = np.zeros(shape=(batch_size,), dtype=INT)
             self.stop = self.copy_to_device(mf.READ_WRITE, self.stop_host)
+            #ytemp may change too
+            self.ytemp_host = np.zeros(shape=(batch_size*self.nvars,), dtype=FLOAT)
+            self.ytemp = self.copy_to_device(mf.READ_WRITE, self.ytemp_host)
             # count of steps for each batch
             # TODO: count of steps for each state, must use an array
             self.nsteps = 0
