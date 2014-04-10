@@ -44,10 +44,10 @@ class Ode45:
         # Get GPU
         self.device = self.platform.get_devices()[0]
         # Use double precision if available
-        if self.device.double_fp_config:
-            FLOAT = np.float64
-        else:
-            FLOAT = np.float32
+        #if self.device.double_fp_config:
+        #    FLOAT = np.float64
+        #else:
+        #    FLOAT = np.float32
         # Create context
         self.ctx = cl.Context([self.device])
         # Create queue
@@ -195,8 +195,7 @@ class Ode45:
             # TODO: count of steps for each state, must use an array
             self.nsteps = 0
             while True:
-                check_step(self.queue, (global_s,), (self.local_size,),
-                           self.h, self.time, self.stop, self.t2, self.hmin)
+                check_step(self.queue, (global_s,), (self.local_size,), self.h, self.time, self.stop, self.t2, self.hmin)
                 # This copy the stop array and check if we need to stop.
                 # TODO: find a way to do this in gpu and avoid copying arrays
                 # in every step (events?)
