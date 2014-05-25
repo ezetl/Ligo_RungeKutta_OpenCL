@@ -7,5 +7,6 @@ TODO:
 puede cambiar. No se me ocurre otro problema que no sea que estoy usando mal el
 tamaño de los arrays. Probablemente el array k este mal, y algunos mas.
 
+FIX??? capaz que el tamanio del H, como esta PRECALCULADo cuando se hace el init (inicializado con el tamanio del bath original), causa errores, porque el ultimo batch puede ser menor que lo pensado. Habria que ver que los bordes estan bien, tal vez pasando el tamanio del batch a los kernels de opencl y chequeando que H[index] cae dentro de eso antes de usar H[index]
 Ideas:
 - tolerance for solver: probar con otros numeros a ver que da (con max time step tambien)
