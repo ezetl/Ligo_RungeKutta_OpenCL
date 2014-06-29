@@ -195,7 +195,7 @@ class Ode45:
             # TODO: count of steps for each state, must use an array
             self.nsteps = 0
             while True:
-                check_step(self.queue, (global_s,), (self.local_size,), self.h, self.time, self.stop, self.t2, self.hmin)
+                check_step(self.queue, (global_s,), None, self.h, self.time, self.stop, self.t2, self.hmin)
                 # This copy the stop array and check if we need to stop.
                 # TODO: find a way to do this in gpu and avoid copying arrays
                 # in every step (events?)
@@ -209,28 +209,28 @@ class Ode45:
                     break
                 # Calculate f_rhs with initial values. The number 0 is because
                 # we want to use the first portion of self.k array
-                f_rhs(self.queue, (global_s,), (self.local_size,),
+                f_rhs(self.queue, (global_s,), None,
                       self.y, self.k, self.stop, self.nvars, STEPS, INT(0))
                 for i in range(1, STEPS):  # cantidad de steps, es del 1 al 7
                     rk_step(self.queue, (global_s,),
-                            (self.local_size,), self.ytemp, self.y, self.k,
+                            None, self.ytemp, self.y, self.k,
                             self.a, self.h, i, STEPS, self.nvars, 6, 1)
-                    f_rhs(self.queue, (global_s,), (self.local_size,),
+                    f_rhs(self.queue, (global_s,), None,
                           self.ytemp, self.k, self.stop, self.nvars, STEPS, i)
                 # 4º y 5º order
-                rk_step(self.queue, (global_s,), (self.local_size,),
+                rk_step(self.queue, (global_s,), None,
                         self.y4, self.y, self.k, self.b4, self.h,
                         INT(STEPS - 1), INT(STEPS), INT(self.nvars), INT(6),
                         INT(0))
-                rk_step(self.queue, (global_s,), (self.local_size,),
+                rk_step(self.queue, (global_s,), None,
                         self.y5, self.y, self.k, self.b5, self.h,
                         INT(STEPS - 2), INT(STEPS), INT(self.nvars), INT(5),
                         INT(0))
                 evaluate_step(self.queue, (global_s,),
-                              (self.local_size,), self.y, self.y4, self.y5,
+                              None, self.y, self.y4, self.y5,
                               self.tau, self.delta, TOL, self.nvars)
                 update_variables(self.queue, (global_s,),
-                                 (self.local_size,), self.y5, self.delta,
+                                 None, self.y5, self.delta,
                                  self.tau, self.time, self.h, self.y,
                                  self.n_ok, self.n_bad, self.stop, TOL,
                                  self.hmax, self.final_omega, self.nvars)
